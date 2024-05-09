@@ -34,6 +34,7 @@ __license__ = """
 
 import h5py
 import numpy as np
+import jax.numpy as jnp
 
 from .. import parameters
 from .interface import DumpFile
@@ -89,6 +90,6 @@ class KORALFile(DumpFile):
         # Upconvert to doubles if necessary
         # TODO could add other types?  Not really necessary yet
         if as_double:
-            arr = arr.astype(np.float64)
+            arr = arr.astype(jnp.float64)
         
         return arr

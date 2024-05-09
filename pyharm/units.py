@@ -37,6 +37,7 @@ __doc__ = \
 """
 
 import numpy as np
+import jax.numpy as jnp
 
 cgs = {
     'CL': 2.99792458e10,
@@ -96,7 +97,7 @@ def get_units(MBH, M_unit, tp_over_te=3, gam=4/3):
 
     out['RHO_unit'] = RHO_unit  = M_unit / (L_unit ** 3)
     out['U_unit'] = RHO_unit * cgs['CL'] ** 2
-    out['B_unit'] = cgs['CL'] * np.sqrt(4. * np.pi * RHO_unit)
+    out['B_unit'] = cgs['CL'] * jnp.sqrt(4. * jnp.pi * RHO_unit)
     out['Ne_unit'] = RHO_unit / (cgs['MP'] + cgs['ME'])
 
     if tp_over_te is not None:
@@ -104,7 +105,7 @@ def get_units(MBH, M_unit, tp_over_te=3, gam=4/3):
     else:
         out['Thetae_unit'] = cgs['MP'] / cgs['ME']
 
-    out['Mdotedd'] = 4.*np.pi * cgs['GNEWT'] * MBH * cgs['MP'] / (0.1 * cgs['CL'] * cgs['THOMSON'])
+    out['Mdotedd'] = 4.*jnp.pi * cgs['GNEWT'] * MBH * cgs['MP'] / (0.1 * cgs['CL'] * cgs['THOMSON'])
 
     # Add constants
     out.update(cgs)

@@ -33,6 +33,7 @@ __license__ = """
 """
 
 import numpy as np
+import jax.numpy as jnp
 import h5py
 
 from pyharm.defs import Loci
@@ -45,7 +46,7 @@ __doc__ = \
 # TODO astype for vis writer
 
 # This does not need to be a class, it's one-and-done
-def write_grid(G, fname="grid.h5", astype=np.float32):
+def write_grid(G, fname="grid.h5", astype=jnp.float32):
     """Dump a file containing grid zones.
     This will primarily be of archival use soon -- see grid.py, coordinates.py for
     a good way of reconstructing all common grids on the fly.
@@ -91,13 +92,13 @@ def write_vis_grid(G, outfname="grid.h5"):
     # Cell coordinates
     x = G.coord_bulk(Loci.CENT).reshape(4, G.N[1], G.N[2], G.N[3])
     outf['Xharm'] = x.transpose(1,2,3,0)
-    outf['Xcart'] = np.array([np.zeros([G.N[1],G.N[2],G.N[3]]), *G.coords.cart_coord(x)]).transpose(1,2,3,0)
-    outf['Xbl'] = np.array([np.zeros([G.N[1],G.N[2],G.N[3]]), *G.coords.ks_coord(x)]).transpose(1,2,3,0)
+    outf['Xcart'] = jnp.array([jnp.zeros([G.N[1],G.N[2],G.N[3]]), *G.coords.cart_coord(x)]).transpose(1,2,3,0)
+    outf['Xbl'] = jnp.array([jnp.zeros([G.N[1],G.N[2],G.N[3]]), *G.coords.ks_coord(x)]).transpose(1,2,3,0)
 
     # Face coordinates
     xf = G.coord_bulk(mesh=True).reshape(4, G.N[1]+1, G.N[2]+1, G.N[3]+1)
     outf['XFharm'] = xf.transpose(1,2,3,0)
-    outf['XFcart'] = np.array([np.zeros([G.N[1]+1,G.N[2]+1,G.N[3]+1]), *G.coords.cart_coord(xf)]).transpose(1,2,3,0)
+    outf['XFcart'] = jnp.array([jnp.zeros([G.N[1]+1,G.N[2]+1,G.N[3]+1]), *G.coords.cart_coord(xf)]).transpose(1,2,3,0)
 
     # Return corner values repeated over N3
     # TODO does bhlight really use corner values?
@@ -117,9 +118,9 @@ def write_vis_grid(G, outfname="grid.h5"):
     outf['gdet'] = gdet3
     outf['alpha'] = lapse3
 
-    dxdX = np.einsum("ij...,jk...->...ik", G.coords.dxdX_cart(x), G.coords.dxdX(x))
+    dxdX = jnp.einsum("ij...,jk...->...ik", G.coords.dxdX_cart(x), G.coords.dxdX(x))
     outf['Lambda_h2cart_con'] = dxdX
-    outf['Lambda_h2cart_cov'] = np.linalg.inv(dxdX)
+    outf['Lambda_h2cart_cov'] = jnp.linalg.inv(dxdX)
 
     #TODO not used for VisIt but for completeness we should add:
     #Lambda_bl2cart_con       Dataset {32, 32, 1, 4, 4}

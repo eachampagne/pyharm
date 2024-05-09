@@ -34,6 +34,7 @@ __license__ = """
 
 import os
 import numpy as np
+import jax.numpy as jnp
 import h5py
 import glob
 
@@ -103,17 +104,17 @@ def smoothed(a, window_sz=101):
     Averages only available data, i.e. only half window-size at edges.
     """
     window_sz = min(window_sz, len(a))
-    ret = np.array([np.mean(a[:n+window_sz//2]) for n in range(1,window_sz//2+1)])
-    ret = np.append(ret, np.convolve(a, np.ones(window_sz), 'valid') / window_sz)
-    ret = np.append(ret, np.array([np.mean(a[-n-window_sz//2:]) for n in range(1,window_sz//2+1)]))
+    ret = jnp.array([jnp.mean(a[:n+window_sz//2]) for n in range(1,window_sz//2+1)])
+    ret = jnp.append(ret, jnp.convolve(a, jnp.ones(window_sz), 'valid') / window_sz)
+    ret = jnp.append(ret, jnp.array([jnp.mean(a[-n-window_sz//2:]) for n in range(1,window_sz//2+1)]))
     return ret
 
 def _get_mdot(diag):
     try:
         # Get mass flux at r=5 to avoid floor effects
-        return np.abs(diag.get_dvar('rt','FM_disk')[:, i_of(diag['r'], 5)])
+        return jnp.abs(diag.get_dvar('rt','FM_disk')[:, i_of(diag['r'], 5)])
     except IOError:
-        return np.abs(diag['Mdot'])
+        return jnp.abs(diag['Mdot'])
 
 class AnaResults(object):
     """Tools for dealing with the results computed by scripts/pyharm-analysis.
@@ -143,25 +144,25 @@ class AnaResults(object):
     """
 
     diag_fn_common = {# Standard names for some EH fluxes
-                    'phi_b_per': lambda diag: diag['Phi_b'] / np.sqrt(diag['mdot']),
-                    'phi_b': lambda diag: diag['Phi_b'] / np.sqrt(diag['smooth_mdot']),
-                    'phi_b_upper': lambda diag: diag['Phi_b_upper'] / np.sqrt(diag['smooth_mdot']),
-                    'phi_b_lower': lambda diag: diag['Phi_b_lower'] / np.sqrt(diag['smooth_mdot']),
-                    'phi_b_per_gauss': lambda diag: diag['Phi_b'] / np.sqrt(diag['mdot']),
-                    'phi_b_gauss': lambda diag: diag['Phi_b'] / np.sqrt(diag['smooth_mdot']),
-                    'phi_b_upper_gauss': lambda diag: diag['Phi_b_upper'] / np.sqrt(diag['smooth_mdot']),
-                    'phi_b_lower_gauss': lambda diag: diag['Phi_b_lower'] / np.sqrt(diag['smooth_mdot']),
+                    'phi_b_per': lambda diag: diag['Phi_b'] / jnp.sqrt(diag['mdot']),
+                    'phi_b': lambda diag: diag['Phi_b'] / jnp.sqrt(diag['smooth_mdot']),
+                    'phi_b_upper': lambda diag: diag['Phi_b_upper'] / jnp.sqrt(diag['smooth_mdot']),
+                    'phi_b_lower': lambda diag: diag['Phi_b_lower'] / jnp.sqrt(diag['smooth_mdot']),
+                    'phi_b_per_gauss': lambda diag: diag['Phi_b'] / jnp.sqrt(diag['mdot']),
+                    'phi_b_gauss': lambda diag: diag['Phi_b'] / jnp.sqrt(diag['smooth_mdot']),
+                    'phi_b_upper_gauss': lambda diag: diag['Phi_b_upper'] / jnp.sqrt(diag['smooth_mdot']),
+                    'phi_b_lower_gauss': lambda diag: diag['Phi_b_lower'] / jnp.sqrt(diag['smooth_mdot']),
                     'edot_per': lambda diag: diag['Edot'] / diag['mdot'],
                     'edot': lambda diag: diag['Edot'] / diag['smooth_mdot'],
                     'ldot_per': lambda diag: diag['Ldot'] / diag['mdot'],
                     'ldot': lambda diag: diag['Ldot'] / diag['smooth_mdot'],
                     'spinup': lambda diag: -(diag['Ldot'] + 2*diag.params['a']*diag['Edot']) / diag['smooth_mdot'],
                     # Post-processing functions for fluxes
-                    'eff': lambda diag: np.abs(diag['Edot'] - diag['mdot']) / diag['smooth_mdot'],
-                    'eff_per': lambda diag: np.abs(diag['Edot'] - diag['mdot']) / diag['mdot'],
+                    'eff': lambda diag: jnp.abs(diag['Edot'] - diag['mdot']) / diag['smooth_mdot'],
+                    'eff_per': lambda diag: jnp.abs(diag['Edot'] - diag['mdot']) / diag['mdot'],
                     }
     # How to load variables from a KHARMA .hst file dictionary
-    diags_hst = {'mdot': lambda diag: np.abs(diag['Mdot_EH_Flux']),
+    diags_hst = {'mdot': lambda diag: jnp.abs(diag['Mdot_EH_Flux']),
                  'Phi_b': lambda diag: diag['Phi_EH'],
                  'Edot': lambda diag: diag['Edot_EH'],
                  'Ldot': lambda diag: diag['Ldot_EH']}
@@ -300,12 +301,12 @@ class AnaResults(object):
                         t = self.file['coord/t'][()]
 
                 # Correct any mishaps with array ordering
-                self.t_perm = np.argsort(t)
+                self.t_perm = jnp.argsort(t)
                 t = t[self.t_perm]
 
                 # For 2D r vs t plots or similar.  ONLY 2D though
                 if mesh and ivar != 't' and ivar != 'diag':
-                    t = np.append(t, t[-1] + (t[-1] - t[0]) / t.shape[0])
+                    t = jnp.append(t, t[-1] + (t[-1] - t[0]) / t.shape[0])
 
                 ret_i.append(t)
                 ivar = ivar[:-1]
@@ -336,7 +337,7 @@ class AnaResults(object):
                 elif ivar == 'phi':
                     ret_i.append(G.coords.phi(native_coords[:, 0, 0, :]))
 
-            ret_grids = np.meshgrid(*reversed(ret_i))
+            ret_grids = jnp.meshgrid(*reversed(ret_i))
             ret_grids.reverse()
 
         if th_r is None and mesh == True:
@@ -371,15 +372,15 @@ class AnaResults(object):
             ret_v = self.file[dvar]
         # Prefixes for a few common 1:1 math operations
         elif dvar[:5] == "sqrt_":
-            ret_v = np.sqrt(self.get_dvar(ivar, dvar[5:]))
+            ret_v = jnp.sqrt(self.get_dvar(ivar, dvar[5:]))
         elif dvar[:7] == "square_":
             ret_v = self.get_dvar(ivar, dvar[7:])**2
         elif dvar[:4] == "abs_":
-            ret_v = np.abs(self.get_dvar(ivar, dvar[4:]))
+            ret_v = jnp.abs(self.get_dvar(ivar, dvar[4:]))
         elif dvar[:4] == "log_":
-            ret_v = np.log10(self.get_dvar(ivar, dvar[4:]))
+            ret_v = jnp.log10(self.get_dvar(ivar, dvar[4:]))
         elif dvar[:3] == "ln_":
-            ret_v = np.log(self.get_dvar(ivar, dvar[3:]))
+            ret_v = jnp.log(self.get_dvar(ivar, dvar[3:]))
         elif dvar[:4] == "inv_":
             ret_v = 1/self.get_dvar(ivar, dvar[4:])
         elif dvar[:4] == "neg_":

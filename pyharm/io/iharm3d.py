@@ -34,6 +34,7 @@ __license__ = """
 
 import h5py
 import numpy as np
+import jax.numpy as jnp
 
 from .interface import DumpFile
 
@@ -122,7 +123,7 @@ class Iharm3DFile(DumpFile):
             fil_slc = [slice(None), slice(None), slice(None)]
             if isinstance(slc, tuple) or isinstance(slc, list):
                 for i in range(len(slc)):
-                    if isinstance(slc[i], int) or isinstance(slc[i], np.int32) or isinstance(slc[i], np.int64):
+                    if isinstance(slc[i], int) or isinstance(slc[i], jnp.int32) or isinstance(slc[i], jnp.int64):
                         fil_slc[i] = slice(slc[i], slc[i]+1)
                     else:
                         fil_slc[i] = slc[i]
@@ -137,7 +138,7 @@ class Iharm3DFile(DumpFile):
                 # This is something else we should grab by name
                 # Default to int type for flags
                 if "flag" in var and 'astype' not in kwargs:
-                    kwargs['astype'] = np.int32
+                    kwargs['astype'] = jnp.int32
                 # Read desired slice
                 if var in fil:
                     self.cache[var] = self._prep_array(fil[var][fil_slc], **kwargs)
@@ -155,7 +156,7 @@ class Iharm3DFile(DumpFile):
         # Reverse indices on vectors, since most pyharm tooling expects p,i,j,k
         # See iharm_dump for analysis interface that restores i,j,k,p order
         if len(arr.shape) > 3:
-            arr = np.einsum("...m->m...", arr)
+            arr = jnp.einsum("...m->m...", arr)
 
         # Convert to desired type. Useful for flags.
         if astype is not None:
@@ -168,7 +169,7 @@ class Iharm3DFile(DumpFile):
 def read_log(logfname):
     """Read an iharm3d-format log.out file into a dictionary
     """
-    dfile = np.loadtxt(logfname).transpose()
+    dfile = jnp.loadtxt(logfname).transpose()
     # iharm3d's logs are deep magic. TODO header?
     log = {}
     log['t'] = dfile[0]
@@ -193,7 +194,7 @@ def read_log(logfname):
 
     return log
 
-def write_dump(dump, fname, astype=np.float32, ghost_zones=False):
+def write_dump(dump, fname, astype=jnp.float32, ghost_zones=False):
     """Write the data in FluidState 'dump' to file 'fname' in iharm3d/Illinois HDF format.
     """
     with h5py.File(fname, "w") as outf:
@@ -230,10 +231,10 @@ def write_dump(dump, fname, astype=np.float32, ghost_zones=False):
         G = dump.grid
         if G.NG > 0 and not ghost_zones:
             p = dump['prims'].astype(astype)
-            outf["prims"] = np.einsum("p...->...p", p[G.slices.allv + G.slices.bulk]).astype(astype)
+            outf["prims"] = jnp.einsum("p...->...p", p[G.slices.allv + G.slices.bulk]).astype(astype)
         else:
             p = dump['prims'].astype(astype)
-            outf["prims"] = np.einsum("p...->...p", p).astype(astype)
+            outf["prims"] = jnp.einsum("p...->...p", p).astype(astype)
 
         # Extra in-situ calculations or custom debugging additions
         if "extras" not in outf:

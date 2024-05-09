@@ -34,6 +34,7 @@ __license__ = """
 
 from enum import Enum
 import numpy as np
+import jax.numpy as jnp
 
 __doc__ = \
 """Definitions of enums used throughout pyharm, and common slices
@@ -119,9 +120,11 @@ class Slices:
     def __init__(self, ng):
         # General slice for all of a given dimension
         self.allv = (slice(None),)
+        #this is a tuple
 
         # General slice for 3vec portion of 4vec
         self.VEC3 = (slice(1, None),)
+        #also a tuple
 
         # Single slices for putting together operations in bounds.py.  May be replaced by loopy kernels
         # Name single slices for character count
@@ -151,7 +154,7 @@ class Slices:
     def geom_slc(self, slc):
         """Return the version of a 3D slice suitable for 2D geometry variables"""
         if len(slc) > 2:
-            if isinstance(slc[2], int) or isinstance(slc[2], np.int32) or isinstance(slc[2], np.int64):
+            if isinstance(slc[2], int) or isinstance(slc[2], jnp.int32) or isinstance(slc[2], jnp.int64):
                 return slc[:2] + (0,)
             else:
                 return slc[:2] + (slice(None),)

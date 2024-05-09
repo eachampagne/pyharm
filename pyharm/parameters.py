@@ -33,6 +33,7 @@ __license__ = """
 """
 
 import numpy as np
+import jax.numpy as jnp
 import configparser
 import re
 
@@ -194,7 +195,7 @@ def fix(params):
             params['n_prim'] = len(params['prim_names'])
 
     # Lots of layers of legacy coordinate specification
-    # To be clear the modern way is to use the 'coordiantes' key,
+    # To be clear the modern way is to use the 'coordinates' key,
     # as one of usually 'fmks','mks','cartesian' (or 'eks', 'mks3', 'bhac_mks', etc, see grid.py)
     if 'coordinates' not in params:
         if 'metric' in params:
@@ -209,7 +210,7 @@ def fix(params):
 
     # Also add eh radius
     if params['coordinates'] != "cartesian" and 'r_eh' not in params and 'a' in params:
-        params['r_eh'] = (1. + np.sqrt(1. - params['a'] ** 2))
+        params['r_eh'] = (1. + jnp.sqrt(1. - params['a'] ** 2))
 
     # Metric defaults we're pretty safe in setting
     # TODO add these to coordinates.py
@@ -221,39 +222,39 @@ def fix(params):
         if not 'poly_alpha' in params:
             params['poly_alpha'] = 14.0
         if 'poly_norm' not in params:
-            params['poly_norm'] = 0.5 * np.pi * 1. / (1. + 1. / (params['poly_alpha'] + 1.) *
-                                        1. / np.power(params['poly_xt'], params['poly_alpha']))
+            params['poly_norm'] = 0.5 * jnp.pi * 1. / (1. + 1. / (params['poly_alpha'] + 1.) *
+                                        1. / jnp.power(params['poly_xt'], params['poly_alpha']))
 
     # If we must guess r_in and/or set coordinate stuff, do it last
     if 'r_in' not in params:
         if 'x1min' not in params:
-            params['r_in'] = np.exp((params['n1'] * np.log(params['r_eh']) / 5.5 - np.log(params['r_out'])) /
+            params['r_in'] = jnp.exp((params['n1'] * jnp.log(params['r_eh']) / 5.5 - jnp.log(params['r_out'])) /
                                     (-1. + params['n1'] / 5.5))
         else:
-            params['r_in'] = np.exp(params['x1min'])
+            params['r_in'] = jnp.exp(params['x1min'])
 
 
     # These replacements are for early KHARMA anyway, before SuperExp coords
     # We record these now
     if params['coordinates'] != "superexp":
         if 'x1min' not in params:
-            params['x1min'] = np.log(params['r_in'])
+            params['x1min'] = jnp.log(params['r_in'])
         if 'x1max' not in params:
-            params['x1max'] = np.log(params['r_out'])
+            params['x1max'] = jnp.log(params['r_out'])
 
     if 'x2min' not in params:
         params['x2min'] = 0.
         if params['coordinates'] in ('fmks', 'mks', 'cartesian',):
             params['x2max'] = 1.0
         else:
-            params['x2max'] = np.pi
+            params['x2max'] = jnp.pi
 
     if 'x3min' not in params:
         params['x3min'] = 0.
         if params['coordinates'] in ('cartesian',):
             params['x3max'] = 1.0
         else:
-            params['x3max'] = 2*np.pi
+            params['x3max'] = 2*jnp.pi
 
     if 'dx1' not in params:
         params['dx1'] = (params['x1max'] - params['x1min']) / params['n1']
@@ -266,7 +267,7 @@ def fix(params):
         if (pair[0] in params):
             params[pair[1]] = params[pair[0]]    
 
-    # Defualts we never changed but didn't always record
+    # Defaults we never changed but didn't always record
     if 'gam_e' not in params:
         params['gam_e'] = 4./3
     if 'gam_p' not in params:

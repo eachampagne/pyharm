@@ -35,6 +35,7 @@ __license__ = """
 import sys
 import glob
 import numpy as np
+import jax.numpy as jnp
 import pandas
 import h5py
 
@@ -213,14 +214,14 @@ class KHARMAFile(DumpFile):
             # Reshape rho to 4D by adding a rank in front for prim index
             # TODO THIS DOES NOT WORK FOR KHARMA HARM-DRIVER RESTARTS
             kwargs = {'astype': astype, 'slc': slc, 'fail_if_not_found': fail_if_not_found}
-            all_vars = self.read_var(var+'.rho', **kwargs)[np.newaxis, Ellipsis]
+            all_vars = self.read_var(var+'.rho', **kwargs)[jnp.newaxis, Ellipsis]
             for v2 in self.var_names_ordered[1:]:
                 try:
                     new_var = self.read_var(v2, **kwargs)
                     if len(new_var.shape) < len(all_vars.shape):
                         # Reshape to 4D if needed to append
-                        new_var = new_var[np.newaxis, Ellipsis]
-                    all_vars = np.append(all_vars, new_var, axis=0)
+                        new_var = new_var[jnp.newaxis, Ellipsis]
+                    all_vars = jnp.append(all_vars, new_var, axis=0)
                 except (IOError, OSError, TypeError, IndexError, KeyError):
                     # Not every file will have all prims
                     pass
@@ -275,17 +276,17 @@ class KHARMAFile(DumpFile):
         if out is None:
             # Allocate the full output mesh size
             if "jcon" in var:
-                out = np.zeros((4, *out_shape), dtype=astype)
+                out = jnp.zeros((4, *out_shape), dtype=astype)
             elif var.split(".")[-1][:1] == "B" or var.split(".")[-1] == "uvec": # We cache the whole thing even for an index
-                out = np.zeros((3, *out_shape), dtype=astype)
+                out = jnp.zeros((3, *out_shape), dtype=astype)
             else:
-                out = np.zeros(out_shape, dtype=astype)
+                out = jnp.zeros(out_shape, dtype=astype)
 
         # Arrange and read each block
         for ib in range(fil.NumBlocks):
             bb = fil.BlockBounds[ib]
             # How much smaller is this block's dx vs the file norm?
-            block_dx = np.abs(bb[1] - bb[0])/fil.MeshBlockSize[0]
+            block_dx = jnp.abs(bb[1] - bb[0])/fil.MeshBlockSize[0]
             level = int(round(dx[0] / block_dx))
             #print("Reading block level", level)
             # Internal location of the block i.e. starting/stopping physical indices in the final, big mesh
@@ -319,31 +320,38 @@ class KHARMAFile(DumpFile):
                     #print("Reading vector size ", fil.fid[var][(ib, slice(None)) + fil_slc].transpose(0,3,2,1).shape, " to loc size ", out[(slice(None),) + out_slc].shape)
                     try:
                         # Newer format: block, var, k, j, i on disk
-                        out[(slice(None),) + out_slc] = fil.fid[var][(ib, slice(None)) + fil_slc].transpose(0,3,2,1)
+                        #out[(slice(None),) + out_slc] = fil.fid[var][(ib, slice(None)) + fil_slc].transpose(0,3,2,1)
+                        out = out.at[(slice(None),) + out_slc].set(fil.fid[var][(ib, slice(None)) + fil_slc].transpose(0,3,2,1))
                     except (IndexError, ValueError):
                         # Older format: block, k, j, i, var
-                        out[(slice(None),) + out_slc] = fil.fid[var][(ib,) + fil_slc + (slice(None),)].T
+                        #out[(slice(None),) + out_slc] = fil.fid[var][(ib,) + fil_slc + (slice(None),)].T
+                        out = out.at[(slice(None),) + out_slc].set(fil.fid[var][(ib,) + fil_slc + (slice(None),)].T)
                 else: # Read a scalar, knocking off the extra index if necessary
                     #print("Reading scalar ", var, " on-disk size ", fil.fid[var].shape, " to loc size ", out[out_slc].shape)
                     #print("Using slice ", fil_slc)
                     try:
                         # Newest (and ironically, also oldest) format: scalars as k, j, i only
-                        out[out_slc] = fil.fid[var][(ib,) + fil_slc].T
+                        #out[out_slc] = fil.fid[var][(ib,) + fil_slc].T
+                        out = out.at[out_slc].set(fil.fid[var][(ib,) + fil_slc].T)
                     except (IndexError, ValueError):
                         try:
                             # Newer format: block, var, k, j, i on disk
-                            out[out_slc] = fil.fid[var][(ib, 0) + fil_slc].T
+                            #out[out_slc] = fil.fid[var][(ib, 0) + fil_slc].T
+                            out = out.at[out_slc].set(fil.fid[var][(ib, 0) + fil_slc].T)
                         except (IndexError, ValueError):
                             # Older format: block, k, j, i, var
-                            out[out_slc] = fil.fid[var][(ib,) + fil_slc + (0,)].T
+                            #out[out_slc] = fil.fid[var][(ib,) + fil_slc + (0,)].T
+                            out = out.at[out_slc].set(fil.fid[var][(ib,) + fil_slc + (0,)].T)
 
             else:
                 # Old file formats.  First anything scalar:
                 if var in fil.Variables:
-                    out[(Ellipsis,) + out_slc] = fil.fid[var][(ib,) + fil_slc + (slice(None),)].T
+                    #out[(Ellipsis,) + out_slc] = fil.fid[var][(ib,) + fil_slc + (slice(None),)].T
+                    out = out.at[(Ellipsis,) + out_slc].set(fil.fid[var][(ib,) + fil_slc + (slice(None),)].T)
                 # If we'd split out "B" it was called "B_prim" (wasn't find/replaced above)
                 elif var[0] == "B" and 'c.c.bulk.B_prim' in fil.Variables:
-                        out[(slice(None),) + out_slc] = fil.fid['c.c.bulk.B_prim'][(ib,) + fil_slc + (slice(None),)].T
+                        #out[(slice(None),) + out_slc] = fil.fid['c.c.bulk.B_prim'][(ib,) + fil_slc + (slice(None),)].T
+                        out = out.at[(slice(None),) + out_slc].set(fil.fid['c.c.bulk.B_prim'][(ib,) + fil_slc + (slice(None),)].T)
                 else:
                     i = self.index_of(var)
                     if i is None:
@@ -354,7 +362,8 @@ class KHARMAFile(DumpFile):
                         #print("Read {} at {}".format(var, i))
                         #print(fil_slc + (i,), file=sys.stderr)
                         #print((Ellipsis,) + out_slc, file=sys.stderr)
-                        out[(Ellipsis,) + out_slc] = fil.fid['c.c.bulk.prims'][(ib,) + fil_slc + (i,)].T
+                        #out[(Ellipsis,) + out_slc] = fil.fid['c.c.bulk.prims'][(ib,) + fil_slc + (i,)].T
+                        out = out.at[(Ellipsis,) + out_slc].set(fil.fid['c.c.bulk.prims'][(ib,) + fil_slc + (i,)].T)
         # Close
         fil.fid.close()
         del fil
@@ -379,7 +388,7 @@ def read_log(fname):
     tab = pandas.read_table(fname, delim_whitespace=True, comment='#', names=header)
     out = {}
     for name in header:
-        out[name] = np.array(tab[name])
+        out[name] = jnp.array(tab[name])
 
     if not 'time' in out:
         print("Not loading KHARMA log file: header not present!")
@@ -387,7 +396,7 @@ def read_log(fname):
     
     # Files can contain multiple runs and restarts
     # First, start at the most recent zero (argmin returns all in order)
-    start = len(out['time']) - np.argmin(out['time'][::-1]) - 1
+    start = len(out['time']) - jnp.argmin(out['time'][::-1]) - 1
     for name in header:
         out[name] = out[name][start:]
 
@@ -405,7 +414,7 @@ def read_log(fname):
                 # i_of returns the index *before* current time
                 i_end = i
                 for name in header:
-                    out[name] = np.append(out[name][:i_start], out[name][i_end:])
+                    out[name] = jnp.append(out[name][:i_start], out[name][i_end:])
                 caught_up = False
                 break
             t_last = t

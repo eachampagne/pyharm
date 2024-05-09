@@ -33,6 +33,7 @@ __license__ = """
 """
 
 import numpy as np
+import jax.numpy as jnp
 
 __doc__ = \
 """Tools for translating analytic solutions to KS coordinates.
@@ -52,13 +53,22 @@ def set_fourvel_t(gcov, ucon):
                gcov[2][3] * ucon[2] * ucon[3])
 
     discr = BB * BB - 4. * AA * CC
-    ucon[0] = (-BB - np.sqrt(discr)) / (2. * AA)
+    #ucon[0] = (-BB - jnp.sqrt(discr)) / (2. * AA)
+    #TODO - replace
+    ucon_new = ucon.at[0].set((-BB - np.sqrt(discr)) / (2. * AA))
+    return ucon_new
 
+#To test - this hasn't run yet
 def fourvel_to_prim(gcon, ucon):
     alpha2 = -1.0 / gcon[0][0]
     # Note gamma/alpha is ucon[0]
-    u_prim = np.zeros([3, *ucon.shape[1:]])
-    u_prim[0] = ucon[1] + ucon[0] * alpha2 * gcon[0][1]
-    u_prim[1] = ucon[2] + ucon[0] * alpha2 * gcon[0][2]
-    u_prim[2] = ucon[3] + ucon[0] * alpha2 * gcon[0][3]
+    #u_prim = np.zeros([3, *ucon.shape[1:]])
+    #u_prim[0] = ucon[1] + ucon[0] * alpha2 * gcon[0][1]
+    #u_prim[1] = ucon[2] + ucon[0] * alpha2 * gcon[0][2]
+    #u_prim[2] = ucon[3] + ucon[0] * alpha2 * gcon[0][3]
+    u_prim_0 = ucon[1] + ucon[0] * alpha2 * gcon[0][1]
+    u_prim_1 = ucon[2] + ucon[0] * alpha2 * gcon[0][2]
+    u_prim_2 = ucon[3] + ucon[0] * alpha2 * gcon[0][3]
+    u_prim = jnp.array([u_prim_0, u_prim_1, u_prim_2])
+    #print(type(u_prim))
     return u_prim

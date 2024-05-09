@@ -33,6 +33,8 @@ __license__ = """
 """
 
 import numpy as np
+import jax.numpy as jnp
+
 from scipy.interpolate import RegularGridInterpolator
 
 from pyharm.defs import Loci
@@ -51,7 +53,7 @@ def resize_var(params, G, var, n1, n2, n3, method='linear'):
 
     :returns resized variable
     """
-    vnew = np.zeros((n1, n2, n3))
+    vnew = jnp.zeros((n1, n2, n3))
     params_new = params.copy()
     params_new['n1tot'] = params_new['n1'] = n1
     params_new['n2tot'] = params_new['n2'] = n2
@@ -67,7 +69,7 @@ def resize_var(params, G, var, n1, n2, n3, method='linear'):
         vnew = interp(Xnew[1:].T).T
     else:
         points = (X[1][:,0], X[2][0,:])
-        interp = RegularGridInterpolator(points, np.squeeze(var), method=method, bounds_error=False)
+        interp = RegularGridInterpolator(points, jnp.squeeze(var), method=method, bounds_error=False)
         vnew = interp(Xnew[1:3].T).T
     del X, Xnew, points
 
@@ -80,7 +82,7 @@ def resize(params, G, P, n1, n2, n3, method='linear'):
     nvar = P.shape[0]
     X = G.coord_all()
 
-    Pnew = np.zeros((nvar, n1, n2, n3))
+    Pnew = jnp.zeros((nvar, n1, n2, n3))
     params_new = params.copy()
     params_new['n1tot'] = params_new['n1'] = n1
     params_new['n2tot'] = params_new['n2'] = n2

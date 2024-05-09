@@ -34,6 +34,7 @@ __license__ = """
 
 import h5py
 import numpy as np
+import jax.numpy as jnp
 
 from pyharm.io.iharm3d import Iharm3DFile
 
@@ -88,7 +89,7 @@ class Iharm3DRestart(Iharm3DFile):
             fil_slc = [slice(None), slice(None), slice(None)]
             if isinstance(slc, tuple) or isinstance(slc, list):
                 for i in range(len(slc)):
-                    if isinstance(slc[i], int) or isinstance(slc[i], np.int32) or isinstance(slc[i], np.int64):
+                    if isinstance(slc[i], int) or isinstance(slc[i], (np.int32, jnp.int32)) or isinstance(slc[i], (np.int64, jnp.int64)):
                         fil_slc[2-i] = slice(slc[i], slc[i]+1)
                     else:
                         fil_slc[2-i] = slc[i]
@@ -109,7 +110,7 @@ class Iharm3DRestart(Iharm3DFile):
 
 ## Module functions
 
-def write_restart(dump, fname, astype=np.float64):
+def write_restart(dump, fname, astype=jnp.float64):
     """Write a valid iharm3d restart/KHARMA resize file,
     containing the data in FluidState 'dump', to 'fname', at precision 'astype'.
     """
@@ -179,7 +180,7 @@ def write_restart(dump, fname, astype=np.float64):
         G = dump.grid
         if G.NG > 0:
             p = dump.reader.read_var('prims', astype=astype)
-            outf["p"] = np.einsum("pijk->pkji", p[G.slices.allv + G.slices.bulk]).astype(astype)
+            outf["p"] = jnp.einsum("pijk->pkji", p[G.slices.allv + G.slices.bulk]).astype(astype)
         else:
             p = dump.reader.read_var('prims', astype=astype)
-            outf["p"] = np.einsum("pijk->pkji", p).astype(astype)
+            outf["p"] = jnp.einsum("pijk->pkji", p).astype(astype)

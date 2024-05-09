@@ -37,6 +37,9 @@ import numpy as np
 import numpy.linalg as la
 import scipy.optimize as opt
 
+import jax.numpy as jnp
+import jax.numpy.linalg as jla
+
 __doc__ = \
 """This file defines a bunch of handy functions for working in or translating between
 several coordinate systems.
@@ -79,18 +82,18 @@ class CoordinateSystem(object):
         Individual coordinates below.
         """
         if fourv:
-            return np.array([np.zeros_like(self.r(x)), self.r(x), self.th(x), self.phi(x)])
+            return jnp.array([jnp.zeros_like(self.r(x)), self.r(x), self.th(x), self.phi(x)])
         else:
-           return np.array([self.r(x), self.th(x), self.phi(x)])
+           return jnp.array([self.r(x), self.th(x), self.phi(x)])
 
     def cart_coord(self, x, fourv=False):
         """Return Cartesian Kerr-Schild or Minkowski coordinates corresponding to a point X in native coordinates.
         Individual coordinates below.
         """
         if fourv:
-            return np.array([np.zeros_like(self.cart_x(x)), self.cart_x(x), self.cart_y(x), self.cart_z(x)])
+            return jnp.array([jnp.zeros_like(self.cart_x(x)), self.cart_x(x), self.cart_y(x), self.cart_z(x)])
         else:
-            return np.array([self.cart_x(x), self.cart_y(x), self.cart_z(x)])
+            return jnp.array([self.cart_x(x), self.cart_y(x), self.cart_z(x)])
 
     def get_bl(self):
         """Return a Boyer-Lindquist coordinate system with the same black hole spin.
@@ -118,7 +121,21 @@ class CoordinateSystem(object):
 
     def correct_small_th(self, theta):
         r""""Corrections" to the theta coordinate to avoid returning exactly 0 or :math:`\pi`"""
-        if isinstance(theta, np.ndarray):
+        #edited to accomodate jax arrays
+        if isinstance(theta, jnp.ndarray):
+            # Perform statically to save lines (/time?)
+            # TODO can do with np.clip...
+            #theta[np.where(np.logical_and(np.abs(theta) < self.small_th, theta >= 0))] = self.small_th
+            theta = theta.at[jnp.where(jnp.logical_and(jnp.abs(theta) < self.small_th, theta >= 0))].set(self.small_th)
+            #theta[np.where(np.logical_and(np.abs(theta) < self.small_th, theta < 0))] = -self.small_th
+            theta = theta.at[jnp.where(jnp.logical_and(jnp.abs(theta) < self.small_th, theta < 0))].set(-self.small_th)
+
+            #theta[np.where(np.logical_and(np.abs(np.pi - theta) < self.small_th, theta >= np.pi))] = np.pi + self.small_th
+            theta = theta.at[jnp.where(jnp.logical_and(jnp.abs(jnp.pi - theta) < self.small_th, theta >= jnp.pi))].set(jnp.pi + self.small_th)
+            #theta[np.where(np.logical_and(np.abs(np.pi - theta) < self.small_th, theta < np.pi))] = np.pi - self.small_th
+            theta = theta.at[jnp.where(jnp.logical_and(jnp.abs(jnp.pi - theta) < self.small_th, theta < jnp.pi))].set(jnp.pi - self.small_th)
+        #original code
+        elif isinstance(theta, np.ndarray):
             # Perform statically to save lines (/time?)
             # TODO can do with np.clip...
             theta[np.where(np.logical_and(np.abs(theta) < self.small_th, theta >= 0))] = self.small_th
@@ -127,17 +144,17 @@ class CoordinateSystem(object):
             theta[np.where(np.logical_and(np.abs(np.pi - theta) < self.small_th, theta >= np.pi))] = np.pi + self.small_th
             theta[np.where(np.logical_and(np.abs(np.pi - theta) < self.small_th, theta < np.pi))] = np.pi - self.small_th
         else:
-            if np.abs(theta) < self.small_th:
+            if jnp.abs(theta) < self.small_th:
                 if theta >= 0:
                     theta = self.small_th
                 if theta < 0:
                     theta = -self.small_th
 
-            if np.abs(np.pi - theta) < self.small_th:
-                if theta >= np.pi:
-                    theta = np.pi + self.small_th
-                if theta < np.pi:
-                    theta = np.pi - self.small_th
+            if jnp.abs(jnp.pi - theta) < self.small_th:
+                if theta >= jnp.pi:
+                    theta = jnp.pi + self.small_th
+                if theta < jnp.pi:
+                    theta = jnp.pi - self.small_th
         return theta
 
     def gcov_ks(self, x):
@@ -169,6 +186,8 @@ class CoordinateSystem(object):
         gcov_ks[3, 1] = gcov_ks[1, 3]
         gcov_ks[3, 3] = s2 * (rho2 + self.a ** 2 * s2 * (1. + 2. * r / rho2))
 
+        gcov_ks = jnp.asarray(gcov_ks)
+
         return gcov_ks
 
     def delta(self, x):
@@ -176,10 +195,10 @@ class CoordinateSystem(object):
         return r**2 - 2.0*r + self.a**2
 
     def sigma(self, x):
-        return self.r(x)**2 + self.a**2 * np.cos(self.th(x))**2
+        return self.r(x)**2 + self.a**2 * jnp.cos(self.th(x))**2
 
     def aa(self, x):
-        return (self.r(x)**2 + self.a**2)**2 - self.a**2 * self.delta(x)*np.sin(self.th(x))**2
+        return (self.r(x)**2 + self.a**2)**2 - self.a**2 * self.delta(x)*jnp.sin(self.th(x))**2
 
     def gcon_ks(self, x):
         """Contravariant metric in Kerr-Schild coordinates at some native location 4-vector X.
@@ -197,7 +216,7 @@ class CoordinateSystem(object):
         """Covariant metric in native coordinates at some native location 4-vector X"""
         gcov_ks = self.gcov_ks(x)
         dxdX = self.dxdX(x)
-        return np.einsum("ab...,ac...,bd...->cd...", gcov_ks, dxdX, dxdX)
+        return jnp.einsum("ab...,ac...,bd...->cd...", gcov_ks, dxdX, dxdX)
 
     def gcon(self, x):
         """Return contravariant form of the metric.
@@ -209,7 +228,7 @@ class CoordinateSystem(object):
         """Return contravariant form of the metric, given the covariant form.
         As with all coordinate functions, the matrix/vector indices are *first*.
         """
-        return np.einsum("...ij->ij...", la.inv(np.einsum("ij...->...ij", gcov)))
+        return jnp.einsum("...ij->ij...", jla.inv(jnp.einsum("ij...->...ij", gcov)))
 
     def gdet(self, X):
         r"""Return the negative root determinant of the metric :math:`\sqrt{-g}`."""
@@ -217,10 +236,10 @@ class CoordinateSystem(object):
 
     def gdet_from_gcov(self, gcov):
         r"""Return the negative root determinant of the metric :math:`\sqrt{-g}`, given the covariant form."""
-        return np.sqrt(-la.det(np.einsum("ij...->...ij", gcov)))
+        return jnp.sqrt(-jla.det(jnp.einsum("ij...->...ij", gcov)))
 
     def lapse(self, X):
-        return 1./np.sqrt(-self.gcon(X)[0,0])
+        return 1./jnp.sqrt(-self.gcon(X)[0,0])
 
     # TODO Einsum this too
     def conn(self, x, delta=1e-5):
@@ -256,6 +275,9 @@ class CoordinateSystem(object):
                     conn[lam, nu, mu] = 0
                     for kap in range(4):
                         conn[lam, nu, mu] += gcon[lam, kap] * tmp[kap, nu, mu]
+
+        conn = jnp.asarray(conn)
+
         return conn
 
     # Transformation matrices are the other system-specific piece
@@ -270,11 +292,11 @@ class CoordinateSystem(object):
 
     # Just take an inverse over first (!) 2 indices
     def dXdx(self, x):
-        return np.einsum("...ij->ij...", la.inv(np.einsum("ij...->...ij", self.dxdX(x))))
+        return jnp.einsum("...ij->ij...", jla.inv(jnp.einsum("ij...->...ij", self.dxdX(x))))
     def dXdx_cart(self, x):
-        return np.einsum("...ij->ij...", la.inv(np.einsum("ij...->...ij", self.dxdX_cart(x))))
+        return jnp.einsum("...ij->ij...", jla.inv(jnp.einsum("ij...->...ij", self.dxdX_cart(x))))
     def dXdx_bl(self, x):
-        return np.einsum("...ij->ij...", la.inv(np.einsum("ij...->...ij", self.dxdX_bl(x))))
+        return jnp.einsum("...ij->ij...", jla.inv(jnp.einsum("ij...->...ij", self.dxdX_bl(x))))
 
 class Minkowski(CoordinateSystem):
     @classmethod
@@ -283,16 +305,16 @@ class Minkowski(CoordinateSystem):
         # 1. XNmin/max: simulation convention, resolution-independent
         # 2. startxN/dxN: file convention, uses only parameters present in HARM format
         if 'x1min' in met_params:
-            return np.array([0, met_params['x1min'], met_params['x2min'], met_params['x3min']])
+            return jnp.array([0, met_params['x1min'], met_params['x2min'], met_params['x3min']])
         else:
-            return np.array([0, met_params['startx1'], met_params['startx2'], met_params['startx3']])
+            return jnp.array([0, met_params['startx1'], met_params['startx2'], met_params['startx3']])
 
     @classmethod
     def native_stopx(cls, met_params):
         if 'x1max' in met_params:
-            return np.array([0, met_params['x1max'], met_params['x2max'], met_params['x3max']])
+            return jnp.array([0, met_params['x1max'], met_params['x2max'], met_params['x3max']])
         else:
-            return np.array([0,
+            return jnp.array([0,
                              met_params['startx1'] + (met_params['n1']*met_params['dx1']),
                              met_params['startx2'] + (met_params['n2']*met_params['dx2']),
                              met_params['startx3'] + (met_params['n3']*met_params['dx3'])]
@@ -305,11 +327,11 @@ class Minkowski(CoordinateSystem):
 
     @classmethod
     def th(cls, x):
-        return np.atan2(np.sqrt(x[1] ** 2 + x[2] ** 2), x[3])
+        return jnp.atan2(jnp.sqrt(x[1] ** 2 + x[2] ** 2), x[3])
 
     @classmethod
     def phi(cls, x):
-        return np.atan2(x[2], x[1])
+        return jnp.atan2(x[2], x[1])
 
     @classmethod
     def cart_x(cls, x, log_r=False):
@@ -328,6 +350,7 @@ class Minkowski(CoordinateSystem):
         dxdX = np.zeros([4, 4, *x.shape[1:]])
         for i in range(4):
             dxdX[i, i] = 1
+        dxdX = jnp.asarray(dxdX)
         return dxdX
 
     @classmethod
@@ -335,6 +358,7 @@ class Minkowski(CoordinateSystem):
         gcov = np.zeros([4, 4, *(x.shape[1:])])
         for mu in range(4):
             gcov[mu, mu] = [-1, 1, 1, 1][mu]
+        gcov = jnp.asarray(gcov)
         return gcov
 
     @classmethod
@@ -347,15 +371,15 @@ class Minkowski(CoordinateSystem):
 
     @classmethod
     def gdet(cls, x):
-        return np.ones([*x.shape[1:]])
+        return jnp.ones([*x.shape[1:]])
 
     @classmethod
     def gdet_from_gcov(cls, gcov):
-        return np.ones([*gcov.shape[2:]])
+        return jnp.ones([*gcov.shape[2:]])
 
     @classmethod
     def conn_func(cls, x, delta=1e-5):
-        return np.zeros([4, 4, 4, *(x.shape[1:])])
+        return jnp.zeros([4, 4, 4, *(x.shape[1:])])
 
 class KS(CoordinateSystem):
     def __init__(self, met_params={'a': 0.9375}):
@@ -369,28 +393,28 @@ class KS(CoordinateSystem):
             self.small_th = 1.e-20
 
         # Set radii
-        self.r_eh = 1. + np.sqrt(1. - self.a ** 2)
+        self.r_eh = 1. + jnp.sqrt(1. - self.a ** 2)
         z1 = 1. + (1. - self.a**2)**(1/3) * ((1. + self.a)**(1/3) + (1. - self.a)**(1. / 3.))
-        z2 = np.sqrt(3. * self.a**2 + z1**2)
-        self.r_isco = 3. + z2 - (np.sqrt((3. - z1) * (3. + z1 + 2. * z2))) * np.sign(self.a)
+        z2 = jnp.sqrt(3. * self.a**2 + z1**2)
+        self.r_isco = 3. + z2 - (jnp.sqrt((3. - z1) * (3. + z1 + 2. * z2))) * jnp.sign(self.a)
 
     def native_startx(self, met_params):
         # TODO take direct 'startx' from met params?
         if 'startx1' in met_params and 'startx2' in met_params and 'startx3' in met_params:
-            startx = np.array([0, met_params['startx1'], met_params['startx2'], met_params['startx3']])
+            startx = jnp.array([0, met_params['startx1'], met_params['startx2'], met_params['startx3']])
         elif 'r_in' in met_params:
             # Set startx1 from r_in
-            startx = np.array([0, met_params['r_in'], 0, 0])
+            startx = jnp.array([0, met_params['r_in'], 0, 0])
         elif 'n1tot' in met_params and 'r_out' in met_params:
             # Else via a guess, which we propagate back to the originating parameter file
             met_params['r_in'] = ((met_params['n1tot'] * self.r_eh / 5.5 - met_params['r_out']) /
                                     (-1. + met_params['n1tot'] / 5.5))
-            startx = np.array([0, met_params['r_in'], 0, 0])
+            startx = jnp.array([0, met_params['r_in'], 0, 0])
         elif 'n1' in met_params and 'r_out' in met_params:
             # Or a more questionable guess
             met_params['r_in'] = ((met_params['n1'] * self.r_eh / 5.5 - met_params['r_out']) /
                                     (-1. + met_params['n1'] / 5.5))
-            startx = np.array([0, met_params['r_in'], 0, 0])
+            startx = jnp.array([0, met_params['r_in'], 0, 0])
         else:
             print("The only parameters provided to native_startx were: ", met_params)
             raise ValueError("Cannot find or guess startx!")
@@ -398,11 +422,11 @@ class KS(CoordinateSystem):
 
     def native_stopx(self, met_params):
         if 'r_out' in met_params:
-            return np.array([0, met_params['r_out'], np.pi, 2*np.pi])
+            return jnp.array([0, met_params['r_out'], jnp.pi, 2*jnp.pi])
         elif ('startx1' in met_params and 'dx1' in met_params and 'n1' in met_params and
                'startx2' in met_params and 'dx2' in met_params and 'n2' in met_params and
                'startx3' in met_params and 'dx3' in met_params and 'n3' in met_params):
-            return np.array([0, met_params['startx1'] + met_params['n1']*met_params['dx1'],
+            return jnp.array([0, met_params['startx1'] + met_params['n1']*met_params['dx1'],
                             met_params['startx2'] + met_params['n2']*met_params['dx2'],
                             met_params['startx3'] + met_params['n3']*met_params['dx3']])
         else:
@@ -421,16 +445,16 @@ class KS(CoordinateSystem):
         return self.r(x), self.th(x), self.phi(x)
 
     def cart_x(self, x, log_r=False):
-        r = np.log(self.r(x)) if log_r else self.r(x)
-        return r*np.sin(self.th(x))*np.cos(self.phi(x))
+        r = jnp.log(self.r(x)) if log_r else self.r(x)
+        return r*jnp.sin(self.th(x))*jnp.cos(self.phi(x))
 
     def cart_y(self, x, log_r=False):
-        r = np.log(self.r(x)) if log_r else self.r(x)
-        return r*np.sin(self.th(x))*np.sin(self.phi(x))
+        r = jnp.log(self.r(x)) if log_r else self.r(x)
+        return r*jnp.sin(self.th(x))*jnp.sin(self.phi(x))
 
     def cart_z(self, x, log_r=False):
-        r = np.log(self.r(x)) if log_r else self.r(x)
-        return r*np.cos(self.th(x))
+        r = jnp.log(self.r(x)) if log_r else self.r(x)
+        return r*jnp.cos(self.th(x))
 
     def dxdX(self, x):
         """Null Transformation"""
@@ -439,6 +463,7 @@ class KS(CoordinateSystem):
         dxdX[1, 1] = 1
         dxdX[2, 2] = 1
         dxdX[3, 3] = 1
+        dxdX = jnp.asarray(dxdX)
         return dxdX
 
     def dxdX_cart(self, x):
@@ -454,6 +479,7 @@ class KS(CoordinateSystem):
         dxdX[3, 1] = np.cos(th)
         dxdX[3, 2] = -r*np.sin(th)
         dxdX[3, 3] = 0
+        dxdX = jnp.asarray(dxdX)
         return dxdX
 
 class EKS(KS):
@@ -463,20 +489,20 @@ class EKS(KS):
     def native_startx(self, met_params):
         # TODO take direct 'startx' from met params?
         if 'startx1' in met_params and 'startx2' in met_params and 'startx3' in met_params:
-            startx = np.array([0, met_params['startx1'], met_params['startx2'], met_params['startx3']])
+            startx = jnp.array([0, met_params['startx1'], met_params['startx2'], met_params['startx3']])
         elif 'r_in' in met_params:
             # Set startx1 from r_in
-            startx = np.array([0, np.log(met_params['r_in']), 0, 0])
+            startx = jnp.array([0, jnp.log(met_params['r_in']), 0, 0])
         elif 'n1tot' in met_params and 'r_out' in met_params:
             # Else via a guess, which we propagate back to the originating parameter file
-            met_params['r_in'] = np.exp((met_params['n1tot'] * np.log(self.r_eh) / 5.5 - np.log(met_params['r_out'])) /
+            met_params['r_in'] = jnp.exp((met_params['n1tot'] * jnp.log(self.r_eh) / 5.5 - jnp.log(met_params['r_out'])) /
                                     (-1. + met_params['n1tot'] / 5.5))
-            startx = np.array([0, np.log(met_params['r_in']), 0, 0])
+            startx = jnp.array([0, jnp.log(met_params['r_in']), 0, 0])
         elif 'n1' in met_params and 'r_out' in met_params:
             # Or a more questionable guess
-            met_params['r_in'] = np.exp((met_params['n1'] * np.log(self.r_eh) / 5.5 - np.log(met_params['r_out'])) /
+            met_params['r_in'] = jnp.exp((met_params['n1'] * jnp.log(self.r_eh) / 5.5 - jnp.log(met_params['r_out'])) /
                                     (-1. + met_params['n1'] / 5.5))
-            startx = np.array([0, np.log(met_params['r_in']), 0, 0])
+            startx = jnp.array([0, jnp.log(met_params['r_in']), 0, 0])
         else:
             print("The only parameters provided to native_startx were: ", met_params)
             raise ValueError("Cannot find or guess startx!")
@@ -484,11 +510,11 @@ class EKS(KS):
 
     def native_stopx(self, met_params):
         if 'r_out' in met_params:
-            return np.array([0, np.log(met_params['r_out']), np.pi, 2*np.pi])
+            return jnp.array([0, jnp.log(met_params['r_out']), jnp.pi, 2*jnp.pi])
         elif ('startx1' in met_params and 'dx1' in met_params and 'n1' in met_params and
                'startx2' in met_params and 'dx2' in met_params and 'n2' in met_params and
                'startx3' in met_params and 'dx3' in met_params and 'n3' in met_params):
-            return np.array([0, met_params['startx1'] + met_params['n1']*met_params['dx1'],
+            return jnp.array([0, met_params['startx1'] + met_params['n1']*met_params['dx1'],
                             met_params['startx2'] + met_params['n2']*met_params['dx2'],
                             met_params['startx3'] + met_params['n3']*met_params['dx3']])
         else:
@@ -496,7 +522,7 @@ class EKS(KS):
 
 
     def r(self, x):
-        return np.exp(x[1])
+        return jnp.exp(x[1])
 
     def dxdX(self, x):
         dxdX = np.zeros([4, 4, *x.shape[1:]])
@@ -504,12 +530,13 @@ class EKS(KS):
         dxdX[1, 1] = np.exp(x[1])
         dxdX[2, 2] = 1
         dxdX[3, 3] = 1
+        dxdX = jnp.asarray(dxdX)
         return dxdX
 
 class SEKS(KS):
     def __init__(self, met_params=default_met_params):
         self.xe1br = met_params['r_br']
-        self.xn1br = np.log(self.xe1br)
+        self.xn1br = jnp.log(self.xe1br)
         self.npow2 = met_params['npow']
         self.cpow2 = met_params['cpow']
         super(SEKS, self).__init__(met_params)
@@ -517,10 +544,10 @@ class SEKS(KS):
     def native_startx(self, met_params):
         # TODO take direct 'startx' from met params?
         if 'startx1' in met_params and 'startx2' in met_params and 'startx3' in met_params:
-            startx = np.array([0, met_params['startx1'], met_params['startx2'], met_params['startx3']])
+            startx = jnp.array([0, met_params['startx1'], met_params['startx2'], met_params['startx3']])
         elif 'r_in' in met_params:
             # Set startx1 from r_in
-            startx = np.array([0, np.log(met_params['r_in']), 0, 0])
+            startx = jnp.array([0, jnp.log(met_params['r_in']), 0, 0])
         else:
             print("The only parameters provided to native_startx were: ", met_params)
             raise ValueError("Cannot find or guess startx!")
@@ -528,11 +555,11 @@ class SEKS(KS):
 
     def native_stopx(self, met_params):
         if 'r_out' in met_params:
-            return np.array([0, np.log(met_params['r_out']), np.pi, 2*np.pi])
+            return jnp.array([0, jnp.log(met_params['r_out']), jnp.pi, 2*jnp.pi])
         elif ('startx1' in met_params and 'dx1' in met_params and 'n1' in met_params and
                'startx2' in met_params and 'dx2' in met_params and 'n2' in met_params and
                'startx3' in met_params and 'dx3' in met_params and 'n3' in met_params):
-            return np.array([0, met_params['startx1'] + met_params['n1']*met_params['dx1'],
+            return jnp.array([0, met_params['startx1'] + met_params['n1']*met_params['dx1'],
                             met_params['startx2'] + met_params['n2']*met_params['dx2'],
                             met_params['startx3'] + met_params['n3']*met_params['dx3']])
         else:
@@ -540,8 +567,8 @@ class SEKS(KS):
 
 
     def r(self, x):
-        super_dist = np.where(x[1] > self.xn1br, x[1] - self.xn1br, 0.0)
-        return np.exp(x[1] + self.cpow2 * np.power(super_dist, self.npow2))
+        super_dist = jnp.where(x[1] > self.xn1br, x[1] - self.xn1br, 0.0)
+        return jnp.exp(x[1] + self.cpow2 * jnp.power(super_dist, self.npow2))
 
     def dxdX(self, x):
         super_dist = np.where(x[1] > self.xn1br, x[1] - self.xn1br, 0.0)
@@ -551,6 +578,7 @@ class SEKS(KS):
                             * (1 + self.cpow2 * self.npow2 * np.power(super_dist, self.npow2-1))
         dxdX[2, 2] = 1
         dxdX[3, 3] = 1
+        dxdX = jnp.asarray(dxdX)
         return dxdX
 
 class MKS(KS):
@@ -561,20 +589,20 @@ class MKS(KS):
     def native_startx(self, met_params):
         # TODO take direct 'startx' from met params?
         if 'startx1' in met_params and 'startx2' in met_params and 'startx3' in met_params:
-            startx = np.array([0, met_params['startx1'], met_params['startx2'], met_params['startx3']])
+            startx = jnp.array([0, met_params['startx1'], met_params['startx2'], met_params['startx3']])
         elif 'r_in' in met_params:
             # Set startx1 from r_in
-            startx = np.array([0, np.log(met_params['r_in']), 0, 0])
+            startx = jnp.array([0, jnp.log(met_params['r_in']), 0, 0])
         elif 'n1tot' in met_params and 'r_out' in met_params:
             # Else via a guess, which we propagate back to the originating parameter file
-            met_params['r_in'] = np.exp((met_params['n1tot'] * np.log(self.r_eh) / 5.5 - np.log(met_params['r_out'])) /
+            met_params['r_in'] = jnp.exp((met_params['n1tot'] * jnp.log(self.r_eh) / 5.5 - jnp.log(met_params['r_out'])) /
                                         (-1. + met_params['n1tot'] / 5.5))
-            startx = np.array([0, np.log(met_params['r_in']), 0, 0])
+            startx = jnp.array([0, jnp.log(met_params['r_in']), 0, 0])
         elif 'n1' in met_params and 'r_out' in met_params:
             # Or a more questionable guess
-            met_params['r_in'] = np.exp((met_params['n1'] * np.log(self.r_eh) / 5.5 - np.log(met_params['r_out'])) /
+            met_params['r_in'] = jnp.exp((met_params['n1'] * jnp.log(self.r_eh) / 5.5 - jnp.log(met_params['r_out'])) /
                                         (-1. + met_params['n1'] / 5.5))
-            startx = np.array([0, np.log(met_params['r_in']), 0, 0])
+            startx = jnp.array([0, jnp.log(met_params['r_in']), 0, 0])
         else:
             print("The only parameters provided to native_startx were: ", met_params)
             raise ValueError("Cannot find or guess startx!")
@@ -582,11 +610,11 @@ class MKS(KS):
 
     def native_stopx(self, met_params):
         if 'r_out' in met_params:
-            return np.array([0, np.log(met_params['r_out']), 1, 2*np.pi])
+            return jnp.array([0, jnp.log(met_params['r_out']), 1, 2*jnp.pi])
         elif ('startx1' in met_params and 'dx1' in met_params and 'n1' in met_params and
                'startx2' in met_params and 'dx2' in met_params and 'n2' in met_params and
                'startx3' in met_params and 'dx3' in met_params and 'n3' in met_params):
-            return np.array([0, met_params['startx1'] + met_params['n1']*met_params['dx1'],
+            return jnp.array([0, met_params['startx1'] + met_params['n1']*met_params['dx1'],
                             met_params['startx2'] + met_params['n2']*met_params['dx2'],
                             met_params['startx3'] + met_params['n3']*met_params['dx3']])
         else:
@@ -594,10 +622,10 @@ class MKS(KS):
 
 
     def r(self, x):
-        return np.exp(x[1])
+        return jnp.exp(x[1])
 
     def th(self, x):
-        return self.correct_small_th(np.pi*x[2] + ((1. - self.hslope)/2.)*np.sin(2.*np.pi*x[2]))
+        return self.correct_small_th(jnp.pi*x[2] + ((1. - self.hslope)/2.)*jnp.sin(2.*jnp.pi*x[2]))
         #return np.pi*x[2] + ((1. - self.hslope)/2.)*np.sin(2.*np.pi*x[2])
 
     def dxdX(self, x):
@@ -607,6 +635,7 @@ class MKS(KS):
 
         dxdX[2, 2] = np.pi - (self.hslope - 1.) * np.pi * np.cos(2. * np.pi * x[2])
         dxdX[3, 3] = 1
+        dxdX = jnp.asarray(dxdX)
         return dxdX
 
 
@@ -614,14 +643,14 @@ class CMKS(MKS):
     def __init__(self, met_params=default_met_params):
         self.poly_xt = met_params['poly_xt']
         self.poly_alpha = met_params['poly_alpha']
-        self.poly_norm = 0.5 * np.pi * 1. / (1. + 1. / (self.poly_alpha + 1.) *
-                                             1. / np.power(self.poly_xt, self.poly_alpha))
+        self.poly_norm = 0.5 * jnp.pi * 1. / (1. + 1. / (self.poly_alpha + 1.) *
+                                             1. / jnp.power(self.poly_xt, self.poly_alpha))
         super(CMKS, self).__init__(met_params)
 
     def th(self, x):
         y = 2 * x[2] - 1.
         th_j = self.poly_norm * y * (
-                    1. + np.power(y / self.poly_xt, self.poly_alpha) / (self.poly_alpha + 1.)) + 0.5 * np.pi
+                    1. + jnp.power(y / self.poly_xt, self.poly_alpha) / (self.poly_alpha + 1.)) + 0.5 * jnp.pi
         if legacy_small_th:
             return self.correct_small_th(th_j)
         else:
@@ -639,15 +668,15 @@ class FMKS(MKS):
         self.poly_alpha = met_params['poly_alpha']
         self.mks_smooth = met_params['mks_smooth']
         self.startx1 = self.native_startx(met_params)[1]
-        self.poly_norm = 0.5 * np.pi * 1. / (1. + 1. / (self.poly_alpha + 1.) *
-                                             1. / np.power(self.poly_xt, self.poly_alpha))
+        self.poly_norm = 0.5 * jnp.pi * 1. / (1. + 1. / (self.poly_alpha + 1.) *
+                                             1. / jnp.power(self.poly_xt, self.poly_alpha))
 
     def th(self, x):
-        th_g = np.pi * x[2] + ((1. - self.hslope) / 2.) * np.sin(2. * np.pi * x[2])
+        th_g = jnp.pi * x[2] + ((1. - self.hslope) / 2.) * jnp.sin(2. * jnp.pi * x[2])
         y = 2 * x[2] - 1.
         th_j = self.poly_norm * y * (
-                    1. + np.power(y / self.poly_xt, self.poly_alpha) / (self.poly_alpha + 1.)) + 0.5 * np.pi
-        return self.correct_small_th(th_g + np.exp(self.mks_smooth * (self.startx1 - x[1])) * (th_j - th_g))
+                    1. + jnp.power(y / self.poly_xt, self.poly_alpha) / (self.poly_alpha + 1.)) + 0.5 * jnp.pi
+        return self.correct_small_th(th_g + jnp.exp(self.mks_smooth * (self.startx1 - x[1])) * (th_j - th_g))
         #return th_g + np.exp(self.mks_smooth * (self.startx1 - x[1])) * (th_j - th_g)
 
     def dxdX(self, x):
@@ -669,10 +698,11 @@ class FMKS(MKS):
                                                      ((1. + self.poly_alpha) * self.poly_xt) -
                                                     (1. - self.hslope) * np.pi * np.cos(2. * np.pi * x[2]))
         dxdX[3, 3] = 1
+        dxdX = jnp.asarray(dxdX)
         return dxdX
 
     def of_ks(self, r, th, phi):
-        x1 = np.log(r)
+        x1 = jnp.log(r)
         x3 = phi
         x2 = opt.newton(lambda x2: self.th([0, x1, x2, x3]) - th, 0.5)
         return [0, x1, x2, x3]
@@ -696,43 +726,43 @@ class BHAC_MKS(CoordinateSystem):
             self.small_th = 1.e-20
 
         # Set radius of horizon
-        self.r_eh = 1. + np.sqrt(1. - self.a ** 2)
+        self.r_eh = 1. + jnp.sqrt(1. - self.a ** 2)
 
     def native_startx(self, met_params):
         if 'r_in' in met_params:
             # Set startx1 from r_in
-            return np.array([0, np.log(met_params['r_in']), 0, 0])
+            return jnp.array([0, jnp.log(met_params['r_in']), 0, 0])
         else:
             # Else automatically
-            return np.array([0,
-                             ((met_params['n1tot'] * np.log(self.r_eh) / 5.5 - np.log(met_params['r_out'])) /
+            return jnp.array([0,
+                             ((met_params['n1tot'] * jnp.log(self.r_eh) / 5.5 - jnp.log(met_params['r_out'])) /
                               (1. + met_params['n1tot'] / 5.5)),
                              0, 0])
 
     def native_stopx(self, met_params):
-        return np.array([0, np.log(met_params['r_out']), np.pi, 2*np.pi])
+        return jnp.array([0, jnp.log(met_params['r_out']), jnp.pi, 2*jnp.pi])
 
     def r(self, x):
-        return np.exp(x[1])
+        return jnp.exp(x[1])
 
     def th(self, x):
         # BHAC MKS uses 0<X2<pi
         if legacy_small_th:
-            return self.correct_small_th(x[2] + 2*self.hslope/(np.pi**2)*x[2]*(np.pi - 2*x[2])*(np.pi-x[2]))
+            return self.correct_small_th(x[2] + 2*self.hslope/(jnp.pi**2)*x[2]*(jnp.pi - 2*x[2])*(jnp.pi-x[2]))
         else:
-            return x[2] + 2*self.hslope/(np.pi**2)*x[2]*(np.pi - 2*x[2])*(np.pi-x[2])
+            return x[2] + 2*self.hslope/(jnp.pi**2)*x[2]*(jnp.pi - 2*x[2])*(jnp.pi-x[2])
 
     def phi(self, x):
         return x[3]
 
     def cart_x(self, x):
-        return self.r(x)*np.sin(self.th(x))*np.cos(self.phi(x))
+        return self.r(x)*jnp.sin(self.th(x))*jnp.cos(self.phi(x))
 
     def cart_y(self, x):
-        return self.r(x)*np.sin(self.th(x))*np.sin(self.phi(x))
+        return self.r(x)*jnp.sin(self.th(x))*jnp.sin(self.phi(x))
 
     def cart_z(self, x):
-        return self.r(x)*np.cos(self.th(x))
+        return self.r(x)*jnp.cos(self.th(x))
 
     def dxdX(self, x):
         dxdX = np.zeros([4, 4, *x.shape[1:]])
@@ -740,6 +770,7 @@ class BHAC_MKS(CoordinateSystem):
         dxdX[1, 1] = np.exp(x[1])
         dxdX[2, 2] = 1 - 2*self.hslope + 12 * self.hslope * ((x[2] / np.pi)**2 - x[2]/np.pi)
         dxdX[3, 3] = 1
+        dxdX = jnp.asarray(dxdX)
         return dxdX
 
 class BL(CoordinateSystem):
@@ -759,13 +790,13 @@ class BL(CoordinateSystem):
         return self.r(x), self.th(x), self.phi(x)
 
     def cart_x(self, x):
-        return self.r(x)*np.sin(self.th(x))*np.cos(self.phi(x))
+        return self.r(x)*jnp.sin(self.th(x))*jnp.cos(self.phi(x))
 
     def cart_y(self, x):
-        return self.r(x)*np.sin(self.th(x))*np.sin(self.phi(x))
+        return self.r(x)*jnp.sin(self.th(x))*jnp.sin(self.phi(x))
 
     def cart_z(self, x):
-        return self.r(x)*np.cos(self.th(x))
+        return self.r(x)*jnp.cos(self.th(x))
 
     def gcov(self, x):
         gcov = np.zeros([4, 4, *(x.shape[1:])])
@@ -785,6 +816,7 @@ class BL(CoordinateSystem):
         gcov[2, 2] = r2 * mu
         gcov[3, 3] = r2 * sth * sth * (1. + a2 / r2 + 2. * a2 * s2 / (r2 * r * mu))
 
+        gcov = jnp.asarray(gcov)
         return gcov
 
     def dxdX(self, x):
@@ -798,6 +830,7 @@ class BL(CoordinateSystem):
         dxdX[2, 2] = 1
         dxdX[3, 1] = self.a / (r**2 - 2.*r + self.a**2)
         dxdX[3, 3] = 1
+        dxdX = jnp.asarray(dxdX)
         return dxdX
 
 class MKS3(CoordinateSystem):
@@ -825,7 +858,7 @@ class MKS3(CoordinateSystem):
             self.small_th = 1.e-20
 
         # Set radius of horizon
-        self.r_eh = 1. + np.sqrt(1. - self.a ** 2)
+        self.r_eh = 1. + jnp.sqrt(1. - self.a ** 2)
 
     def native_startx(self, met_params):
         rin = 0
@@ -834,21 +867,21 @@ class MKS3(CoordinateSystem):
             rin = met_params['r_in']
         else:
             # Else automatically
-            rin = np.exp((met_params['n1tot'] * np.log(self.r_eh - self.r0) / 5.5 - np.log(met_params['r_out'] - self.r0)) /
+            rin = jnp.exp((met_params['n1tot'] * jnp.log(self.r_eh - self.r0) / 5.5 - jnp.log(met_params['r_out'] - self.r0)) /
                               (1. + met_params['n1tot'] / 5.5))
-        return np.array([0, np.log(rin - self.r0), 0, 0])
+        return jnp.array([0, jnp.log(rin - self.r0), 0, 0])
 
     def native_stopx(self, met_params):
-        return np.array([0, np.log(met_params['r_out'] - self.r0), np.pi, 2*np.pi])
+        return jnp.array([0, jnp.log(met_params['r_out'] - self.r0), jnp.pi, 2*jnp.pi])
 
     def r(self, x):
-        return np.exp(x[1]) + self.r0
+        return jnp.exp(x[1]) + self.r0
 
     def th(self, x):
         R0, H0 = self.r0, self.h0
         MY1, MY2, MP0 = self.my1, self.my2, self.mp0
-        th = 0.5 * (np.pi * (1. + 1. / np.tan((H0 * np.pi) / 2.) *
-                                np.tan(H0 * np.pi * (-0.5 + (MY1 + (2.**MP0 * (-MY1 + MY2)) / (np.exp(x[1]) + R0)**MP0)
+        th = 0.5 * (jnp.pi * (1. + 1. / jnp.tan((H0 * jnp.pi) / 2.) *
+                                jnp.tan(H0 * jnp.pi * (-0.5 + (MY1 + (2.**MP0 * (-MY1 + MY2)) / (jnp.exp(x[1]) + R0)**MP0)
                                     * (1. - 2. * x[2]) + x[2]))))
         if legacy_small_th:
             return self.correct_small_th(th)
@@ -859,13 +892,13 @@ class MKS3(CoordinateSystem):
         return x[3]
 
     def cart_x(self, x):
-        return self.r(x)*np.sin(self.th(x))*np.cos(self.phi(x))
+        return self.r(x)*jnp.sin(self.th(x))*jnp.cos(self.phi(x))
 
     def cart_y(self, x):
-        return self.r(x)*np.sin(self.th(x))*np.sin(self.phi(x))
+        return self.r(x)*jnp.sin(self.th(x))*jnp.sin(self.phi(x))
 
     def cart_z(self, x):
-        return self.r(x)*np.cos(self.th(x))
+        return self.r(x)*jnp.cos(self.th(x))
 
     def dxdX(self, x):
         dxdX = np.zeros([4, 4, *x.shape[1:]])
@@ -884,4 +917,5 @@ class MKS3(CoordinateSystem):
                               np.power(2, 1 + MP0) * (-MY1 + MY2)) * np.pi**2 * (1 + (np.power(-2 * x[2] + np.pi, 2) * np.power(np.tan((H0 * np.pi) / 2.), 2)) /
                                                                                                              np.pi**2)))
         dxdX[3, 3] = 1.
+        dxdX = jnp.asarray(dxdX)
         return dxdX

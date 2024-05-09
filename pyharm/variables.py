@@ -37,6 +37,7 @@ __doc__ = \
 """
 
 import numpy as np
+import jax.numpy as jnp
 
 from numpy import array
 from scipy.interpolate import splrep, splev
@@ -57,27 +58,27 @@ fns_dict = {# 4-vectors
             'bcov': lambda dump: dump.grid.lower_grid(dump['bcon']),
             # Versions in base coordinates
             # these use the reverse of dxdX/dXdx as they transform *back*
-            'ucon_base': lambda dump: np.einsum("i...,ij...->j...", dump["ucon"], dump['dxdX']),
-            'ucov_base': lambda dump: np.einsum("i...,ij...->j...", dump["ucov"], dump['dXdx']),
-            'bcon_base': lambda dump: np.einsum("i...,ij...->j...", dump["bcon"], dump['dxdX']),
-            'bcov_base': lambda dump: np.einsum("i...,ij...->j...", dump["bcov"], dump['dXdx']),
+            'ucon_base': lambda dump: jnp.einsum("i...,ij...->j...", dump["ucon"], dump['dxdX']),
+            'ucov_base': lambda dump: jnp.einsum("i...,ij...->j...", dump["ucov"], dump['dXdx']),
+            'bcon_base': lambda dump: jnp.einsum("i...,ij...->j...", dump["bcon"], dump['dxdX']),
+            'bcov_base': lambda dump: jnp.einsum("i...,ij...->j...", dump["bcov"], dump['dXdx']),
             # Versions in Cartesian
-            'ucon_cart': lambda dump: np.einsum("i...,ij...->j...", dump["ucon_base"], dump['dXdx_cart']),
-            'ucov_cart': lambda dump: np.einsum("i...,ij...->j...", dump["ucov_base"], dump['dxdX_cart']),
-            'bcon_cart': lambda dump: np.einsum("i...,ij...->j...", dump["bcon_base"], dump['dXdx_cart']),
-            'bcov_cart': lambda dump: np.einsum("i...,ij...->j...", dump["bcov_base"], dump['dxdX_cart']),
+            'ucon_cart': lambda dump: jnp.einsum("i...,ij...->j...", dump["ucon_base"], dump['dXdx_cart']),
+            'ucov_cart': lambda dump: jnp.einsum("i...,ij...->j...", dump["ucov_base"], dump['dxdX_cart']),
+            'bcon_cart': lambda dump: jnp.einsum("i...,ij...->j...", dump["bcon_base"], dump['dXdx_cart']),
+            'bcov_cart': lambda dump: jnp.einsum("i...,ij...->j...", dump["bcov_base"], dump['dxdX_cart']),
             # Versions in BL
-            'ucon_bl': lambda dump: np.einsum("ij...,j...->i...", dump['dxdX_bl'], dump['ucon_base']),
-            'ucov_bl': lambda dump: np.einsum("ij...,j...->i...", dump['dXdx_bl'], dump['ucov_base']),
-            'bcon_bl': lambda dump: np.einsum("ij...,j...->i...", dump['dxdX_bl'], dump['bcon_base']),
-            'bcov_bl': lambda dump: np.einsum("ij...,j...->i...", dump['dXdx_bl'], dump['bcov_base']),
+            'ucon_bl': lambda dump: jnp.einsum("ij...,j...->i...", dump['dxdX_bl'], dump['ucon_base']),
+            'ucov_bl': lambda dump: jnp.einsum("ij...,j...->i...", dump['dXdx_bl'], dump['ucov_base']),
+            'bcon_bl': lambda dump: jnp.einsum("ij...,j...->i...", dump['dxdX_bl'], dump['bcon_base']),
+            'bcov_bl': lambda dump: jnp.einsum("ij...,j...->i...", dump['dXdx_bl'], dump['bcov_base']),
             # Renaming
             'u': lambda dump: dump['UU'],
             'p': lambda dump: dump['Pg'],
             'T': lambda dump: dump['Theta'],
             # Fluid parameters: B, pressure, temperature
             'bsq': lambda dump: dump.grid.dot(dump['bcov'], dump['bcon']),
-            'b': lambda dump: np.sqrt(dump['bsq']),
+            'b': lambda dump: jnp.sqrt(dump['bsq']),
             'Pg': lambda dump: (dump['gam'] - 1.) * dump['UU'],
             'Pb': lambda dump: dump['bsq'] / 2,
             'Ptot': lambda dump: dump['Pg'] + dump['Pb'],
@@ -89,7 +90,7 @@ fns_dict = {# 4-vectors
             'h': lambda dump: enthalpy(dump),
             # Speeds
             'Gamma': lambda dump: lorentz_calc(dump),
-            'cs': lambda dump: np.sqrt(dump['gam'] * dump['Pg'] / (dump['RHO'] + dump['gam'] * dump['UU'])),
+            'cs': lambda dump: jnp.sqrt(dump['gam'] * dump['Pg'] / (dump['RHO'] + dump['gam'] * dump['UU'])),
             'vA': lambda dump: alfven_speed(dump),
             'Omega': lambda dump: dump["u^phi"] / dump["u^t"] ,
             # TODO magnetosonic, EMHD speed, effective timestep
@@ -112,7 +113,7 @@ fns_dict = {# 4-vectors
             # Bernoulli parameter
             'Be_b': lambda dump: bernoulli(dump, with_B=True),
             'Be_nob': lambda dump: bernoulli(dump, with_B=False),
-            'betagamma': lambda dump: np.sqrt((dump['FE'] / dump['FM'])**2 - 1),
+            'betagamma': lambda dump: jnp.sqrt((dump['FE'] / dump['FM'])**2 - 1),
             # Luminosity proxy (Porth et al '19)
             'lumproxy': lambda dump: lum_proxy(dump),
             # Jet area measure
@@ -146,7 +147,7 @@ def lorentz_calc(dump):
     if 'ucon' in dump.cache:
         return dump['ucon'][0] * dump['lapse']
     else:
-        return np.sqrt(1 + (dump['gcov'][1, 1] * dump['U1'] ** 2 +
+        return jnp.sqrt(1 + (dump['gcov'][1, 1] * dump['U1'] ** 2 +
                             dump['gcov'][2, 2] * dump['U2'] ** 2 +
                             dump['gcov'][3, 3] * dump['U3'] ** 2) + \
                             2. * (dump['gcov'][1, 2] * dump['U1'] * dump['U2'] +
@@ -155,10 +156,12 @@ def lorentz_calc(dump):
 
 def ucon_calc(dump):
     """Find contravariant fluid four-velocity"""
-    ucon = np.zeros((4, *dump['U1'].shape))
-    ucon[0] = dump['Gamma'] / dump['lapse']
+    ucon = jnp.zeros((4, *dump['U1'].shape))
+    #ucon[0] = dump['Gamma'] / dump['lapse']
+    ucon = ucon.at[0].set(dump['Gamma'] / dump['lapse'])
     for mu in range(1, 4):
-        ucon[mu] = dump['uvec'][mu-1] - dump['Gamma'] * dump['lapse'] * dump['gcon'][0, mu]
+        #ucon[mu] = dump['uvec'][mu-1] - dump['Gamma'] * dump['lapse'] * dump['gcon'][0, mu]
+        ucon = ucon.at[mu].set(dump['uvec'][mu-1] - dump['Gamma'] * dump['lapse'] * dump['gcon'][0, mu])
 
     return ucon
 
@@ -169,14 +172,19 @@ def bcon_calc(dump):
     try:
         B = dump["B"]
     except (IOError, OSError):
-        B = np.zeros(np.shape(dump["ucov"][1:]))
-    bcon = np.zeros_like(dump['ucon'])
-    bcon[0] = B[0] * dump['ucov'][1] + \
-              B[1] * dump['ucov'][2] + \
-              B[2] * dump['ucov'][3]
+        B = jnp.zeros(jnp.shape(dump["ucov"][1:]))
+    bcon = jnp.zeros_like(dump['ucon'])
+    #bcon[0] = B[0] * dump['ucov'][1] + \
+    #          B[1] * dump['ucov'][2] + \
+    #          B[2] * dump['ucov'][3]
+    bcon = bcon.at[0].set(B[0] * dump['ucov'][1] + \
+                          B[1] * dump['ucov'][2] + \
+                          B[2] * dump['ucov'][3])
     for mu in range(1, 4):
-        bcon[mu] = (B[mu-1] + bcon[0] * dump['ucon'][mu]) \
-                        / dump['ucon'][0]
+        #bcon[mu] = (B[mu-1] + bcon[0] * dump['ucon'][mu]) \
+        #                / dump['ucon'][0]
+        bcon = bcon.at[mu].set((B[mu-1] + bcon[0] * dump['ucon'][mu]) \
+                                    / dump['ucon'][0])
 
     return bcon
 
@@ -239,21 +247,23 @@ def TFl_mixed(dump, i, j):
 def F_con(dump, i, j):
     """Return the i,j component of contravariant Maxwell tensor"""
 
-    Fconij = np.zeros_like(dump['RHO']) # TODO(BSP)
+    Fconij = jnp.zeros_like(dump['RHO']) # TODO(BSP)
     if i != j:
         for mu in range(4):
             for nu in range(4):
-                Fconij += (- _antisym(i, j, mu, nu) / dump['gdet']) * dump['ucov'][mu] * dump['bcov'][nu]
+                #Fconij += (- _antisym(i, j, mu, nu) / dump['gdet']) * dump['ucov'][mu] * dump['bcov'][nu]
+                Fconij = Fconij + (- _antisym(i, j, mu, nu) / dump['gdet']) * dump['ucov'][mu] * dump['bcov'][nu]
 
     return Fconij
 
 
 def F_cov(dump, i, j):
     """Return the i,j component of covariant Maxwell tensor"""
-    Fcovij = np.zeros_like(dump['RHO'])
+    Fcovij = jnp.zeros_like(dump['RHO'])
     for mu in range(4):
         for nu in range(4):
-            Fcovij += F_con(dump, mu, nu) * dump['gcov'][mu, i] * dump['gcov'][nu, j]
+            #Fcovij += F_con(dump, mu, nu) * dump['gcov'][mu, i] * dump['gcov'][nu, j]
+            Fcovij = Fcovij + F_con(dump, mu, nu) * dump['gcov'][mu, i] * dump['gcov'][nu, j]
 
     return Fcovij
 
@@ -262,37 +272,37 @@ def F_cov(dump, i, j):
 def bernoulli(dump, with_B=False):
     if with_B:
         #return -(T_mixed(dump, 0, 0) / dump['FM']) - 1
-        return np.sqrt( (-T_mixed(dump, 1, 0) / (dump['rho']*dump['u^1']))**2 - 1)
+        return jnp.sqrt( (-T_mixed(dump, 1, 0) / (dump['rho']*dump['u^1']))**2 - 1)
     else:
         return -(1 + dump['gam'] * dump['UU'] / dump['RHO']) * dump['ucov'][0] - 1
 
 def lam_MRI_old(dump):
-    return (2*np.pi)/(dump['u^3']/dump['u^0']) * dump['b^th']/np.sqrt(dump['rho'] + dump['u'] + dump['p'] + dump['bsq'])
+    return (2*jnp.pi)/(dump['u^3']/dump['u^0']) * dump['b^th']/jnp.sqrt(dump['rho'] + dump['u'] + dump['p'] + dump['bsq'])
 
 def alfven_speed(dump):
-    return dump['b']/np.sqrt(dump["bsq"] + dump['rho'] + dump["gam"] * dump["UU"])
+    return dump['b']/jnp.sqrt(dump["bsq"] + dump['rho'] + dump["gam"] * dump["UU"])
 
 def lam_MRI(dump):
     return dump['vA'] / (dump['u^3']/dump['u^0'])
 
 def lam_MRI_transform(dump):
     # From Porth et al (2019) & referenced Takahashi 
-    return 2 * np.pi / (np.sqrt(dump['rho']*dump['h'] + dump['bsq']) * (dump['u^3']/dump['u^0'])) * \
-            dump['b^th'] * np.sqrt(dump['r']**2 + dump['a']**2 * np.cos(dump['th'])**2)
+    return 2 * jnp.pi / (jnp.sqrt(dump['rho']*dump['h'] + dump['bsq']) * (dump['u^3']/dump['u^0'])) * \
+            dump['b^th'] * jnp.sqrt(dump['r']**2 + dump['a']**2 * jnp.cos(dump['th'])**2)
 
 def enthalpy(dump):
     return 1 + dump['Pg'] + dump['u']
 
 def entropy(dump): # added by Hyerin (02/14/23)
-    return dump['p']/np.power(dump['rho'],dump['gam'])
+    return dump['p']/jnp.power(dump['rho'],dump['gam'])
 
 def jet_psi(dump):
     sig = dump['sigma']
-    return np.where(sig >= 1, 1, np.where(sig <= 0.1, 0, sig))
+    return jnp.where(sig >= 1, 1, jnp.where(sig <= 0.1, 0, sig))
 
 def lum_proxy(dump):
     # See EHT code comparison paper
-    return dump['rho'] ** 3 / dump['Pg'] ** 2 * np.exp(-0.2 * (dump['rho'] ** 2 / (dump['b'] * dump['Pg'] ** 2)) ** (1. / 3.))
+    return dump['rho'] ** 3 / dump['Pg'] ** 2 * jnp.exp(-0.2 * (dump['rho'] ** 2 / (dump['b'] * dump['Pg'] ** 2)) ** (1. / 3.))
 
 def thetae_rhigh(dump, Rlow=1, Rhigh=10, beta_crit=1.0):
     units = dump.units
@@ -303,24 +313,24 @@ def thetae_rhigh(dump, Rlow=1, Rhigh=10, beta_crit=1.0):
                   (game-1.) * (gamp-1.) / ( (gamp-1.) + (game-1.) * trat)
     return Thetae_unit * dump['Theta']
 
-def jnu(dump, nu=230e9, theta=np.pi/3):
+def jnu(dump, nu=230e9, theta=jnp.pi/3):
     units = dump.units
     Thetae = dump['Thetae_rhigh']
     K2 = 2 * Thetae**2 # Approximate Bessel K_2(1/Thetae)
-    nuc = units['EE'] * dump['b'] / (2. * np.pi * units['ME'] * units['CL'])
-    nus = (2. / 9.) * nuc * Thetae ** 2 * np.sin(theta)
+    nuc = units['EE'] * dump['b'] / (2. * jnp.pi * units['ME'] * units['CL'])
+    nus = (2. / 9.) * nuc * Thetae ** 2 * jnp.sin(theta)
     x = nu / nus
-    f = (np.sqrt(x) + 2**(11/12) * x**(1/6))**2
+    f = (jnp.sqrt(x) + 2**(11/12) * x**(1/6))**2
     Ne = dump['RHO'] * units['RHO_unit'] / (units['MP'] + units['ME'])
-    j = (np.sqrt(2) * np.pi * units['EE']**2 * Ne * nus / \
-        (3. * units['CL'] * K2)) * f * np.exp(-x**(1/3))
+    j = (jnp.sqrt(2) * jnp.pi * units['EE']**2 * Ne * nus / \
+        (3. * units['CL'] * K2)) * f * jnp.exp(-x**(1/3))
     j[nu > 1.e12 * nus] = 0.
     return j / nu**2
 
 def braginskii_dP(state, delta=1.e-5):
     """Braginskii pressure anisotropy"""
 
-    dP0         = np.zeros_like(state['rho'])
+    dP0         = jnp.zeros_like(state['rho'])
 
     # Compute derivatives of 4-velocity
     x11    = state['X1'][:,0,0]
@@ -351,26 +361,32 @@ def braginskii_dP(state, delta=1.e-5):
     ucovr_h = ucovr_interp(h_points)[Ellipsis,0]
     ucovr_l = ucovr_interp(l_points)[Ellipsis,0]
 
-    ducovDx1 = np.zeros_like(state['ucov']) # Represents d_x1(u_\mu)
-    ducovDx1[0] = (ucovt_h - ucovt_l) / (2*delta)
-    ducovDx1[1] = (ucovr_h - ucovr_l) / (2*delta)
+    ducovDx1 = jnp.zeros_like(state['ucov']) # Represents d_x1(u_\mu)
+    #ducovDx1[0] = (ucovt_h - ucovt_l) / (2*delta)
+    ducovDx1 = ducovDx1.at[0].set((ucovt_h - ucovt_l) / (2*delta))
+    #ducovDx1[1] = (ucovr_h - ucovr_l) / (2*delta)
+    ducovDx1 = ducovDx1.at[1].set((ucovr_h - ucovr_l) / (2*delta))
 
     for mu in range(4):
         for nu in range(4):
             bcon_munu = (state['bcon'][mu]*state['bcon'][nu] / state['bsq'])
             if mu == 1:
-                dP0 += 3 * state['eta'] * bcon_munu * ducovDx1[nu]
+                #dP0 += 3 * state['eta'] * bcon_munu * ducovDx1[nu]
+                dP0 = dP0 + 3 * state['eta'] * bcon_munu * ducovDx1[nu]
 
             for sigma in range(4):
-                dP0 += (3 * state['eta'] * bcon_munu) * -state['conn'][sigma, mu, nu] * state['ucov'][sigma]
+                #dP0 += (3 * state['eta'] * bcon_munu) * -state['conn'][sigma, mu, nu] * state['ucov'][sigma]
+                dP0 = dP0 + (3 * state['eta'] * bcon_munu) * -state['conn'][sigma, mu, nu] * state['ucov'][sigma]
 
         if mu == 1:
             for sigma in range(4):
-                dP0 += -state['eta'] * ducovDx1[sigma] * state['gcon'][mu, sigma]
+                #dP0 += -state['eta'] * ducovDx1[sigma] * state['gcon'][mu, sigma]
+                dP0 = dP0 + -state['eta'] * ducovDx1[sigma] * state['gcon'][mu, sigma]
 
         for sigma in range(4):
             for delta in range(4):
-                dP0 += state['eta'] * state['conn'][sigma, mu, delta] * state['gcon'][mu, delta] * state['ucov'][sigma]
+                #dP0 += state['eta'] * state['conn'][sigma, mu, delta] * state['gcon'][mu, delta] * state['ucov'][sigma]
+                dP0 = dP0 + state['eta'] * state['conn'][sigma, mu, delta] * state['gcon'][mu, delta] * state['ucov'][sigma]
 
     return dP0
 

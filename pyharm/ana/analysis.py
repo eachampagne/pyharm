@@ -34,6 +34,7 @@ __license__ = """
 
 import sys
 import numpy as np
+import jax.numpy as jnp
 
 from ..fluid_state import FluidState
 from . import analyses
@@ -55,11 +56,11 @@ def write_ana_dict(out, out_full, n, n_dumps):
             # Add destination ndarray of the right size if not present
             # Use single-precision, because we have rtht profiles that are entire movies!
             if tag == 't' or key == 'coord/t':
-                out_full[key] = np.zeros(n_dumps, dtype=np.float32)
+                out_full[key] = jnp.zeros(n_dumps, dtype=jnp.float32)
             elif tag[-1:] == 't':
-                out_full[key] = np.zeros((n_dumps,)+out[key].shape, dtype=np.float32)
+                out_full[key] = jnp.zeros((n_dumps,)+out[key].shape, dtype=jnp.float32)
             else:
-                out_full[key] = np.zeros_like(out[key])
+                out_full[key] = jnp.zeros_like(out[key])
 
         # Slot in time-dependent vars, add averaged vars to running total
         try:

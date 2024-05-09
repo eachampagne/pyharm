@@ -33,6 +33,8 @@ __license__ = """
 """
 
 import numpy as np
+import jax.numpy as jnp
+
 import scipy.fftpack as fft
 
 # This is too darn useful
@@ -72,15 +74,15 @@ def flatten_xz(dump, var, at=None, sum=False, half_cut=False):
         if half_cut:
             return var
         else:
-            return np.append(var, np.flip(var, 1), 1)
+            return jnp.append(var, jnp.flip(var, 1), 1)
     else:
         if at is None:
             at = 0
         if isinstance(var, str):
             if half_cut:
-                return np.squeeze(dump[:, :, at][var])
+                return jnp.squeeze(dump[:, :, at][var])
             else:
-                return np.append(np.squeeze(dump[:, :, at][var]), np.flip(np.squeeze(dump[:, :, at + dump['n3']//2][var]), 1), 1)
+                return jnp.append(jnp.squeeze(dump[:, :, at][var]), jnp.flip(jnp.squeeze(dump[:, :, at + dump['n3']//2][var]), 1), 1)
         else:
             if half_cut:
                 if len(var.shape) == 3:
@@ -88,7 +90,7 @@ def flatten_xz(dump, var, at=None, sum=False, half_cut=False):
                 else:
                     return var
             else:
-                return np.append(var[:, :, at], np.flip(var[:, :, at + dump['n3']//2], 1), 1)
+                return jnp.append(var[:, :, at], jnp.flip(var[:, :, at + dump['n3']//2], 1), 1)
 
 def flatten_xy(dump, var, at=None, sum=False):
     """Return an X-Y slice or sum of var.  Note sums are *not* GR-aware!
@@ -104,7 +106,7 @@ def flatten_xy(dump, var, at=None, sum=False):
         if at is None:
             at = dump['n2']//2
         if isinstance(var, str):
-            return np.squeeze(dump[:, at, :][var])
+            return jnp.squeeze(dump[:, at, :][var])
         else:
             return var[:, at, :]
 
@@ -115,7 +117,7 @@ def wrap(x):
     Useful when plotting zone-centered th or phi variables, as it allows shading
     of the region between ends of the array eliminating an ugly gap.
     """
-    return np.append(x[Ellipsis], x[:, 0:1], 1)
+    return jnp.append(x[Ellipsis], x[:, 0:1], 1)
 
 def flatten_thphi(dump, var, at=5, sum=False):
     """Return a th-phi slice or sum of var.  Note sums are *not* GR-aware!
@@ -129,7 +131,7 @@ def flatten_thphi(dump, var, at=5, sum=False):
         return var.sum(0)
     else:
         if isinstance(var, str):
-            return np.squeeze(dump[at][var])
+            return jnp.squeeze(dump[at][var])
         else:
             return var[at]
 
@@ -140,13 +142,13 @@ def get_i_slice(dump, r_min, r_max):
     """Calculate slice imin:imax for a given range in r"""
     return slice(i_of(dump['r1d'], r_min), i_of(dump['r1d'], r_max))
 
-def get_j_bounds(dump, th_min=np.pi / 3., th_max=2*np.pi / 3.):
+def get_j_bounds(dump, th_min=jnp.pi / 3., th_max=2*jnp.pi / 3.):
     """Calculate slice jmin:jmax for a given range in theta: returns *tuple*
     Defaults to EHT disk profile: pi/3 to 2pi/3
     """
     return (i_of(dump['th1d'], th_min), i_of(dump['th1d'], th_max))
 
-def get_j_slice(dump, th_min=np.pi / 3., th_max=2*np.pi / 3.):
+def get_j_slice(dump, th_min=jnp.pi / 3., th_max=2*jnp.pi / 3.):
     """Calculate slice jmin:jmax for a given range in theta: returns *slice*
     Defaults to EHT disk profile: pi/3 to 2pi/3
     """
@@ -192,7 +194,7 @@ def shell_sum(dump, var, at_r=None, at_i=None, th_slice=None, j_slice=None, mask
 
     # This should usually return the right thing:
     # 1d array in r, or 0d array (~= scalar) for single shell 
-    return np.squeeze(np.sum(integrand, axis=(1, 2)))
+    return jnp.squeeze(jnp.sum(integrand, axis=(1, 2)))
 
 
 def shell_avg(dump, var, **kwargs):
@@ -228,7 +230,7 @@ def sphere_sum(dump, var, r_slice=None, i_slice=None, th_slice=None, j_slice=Non
         var = var[i_slice, j_slice, :]
 
     # TODO mask support?
-    return np.sum(var * dump['gdet'][i_slice, j_slice, :] * dump['dx1'] * dump['dx2'] * dump['dx3'])
+    return jnp.sum(var * dump['gdet'][i_slice, j_slice, :] * dump['dx1'] * dump['dx2'] * dump['dx3'])
 
 
 def sphere_avg(dump, var, **kwargs):
@@ -300,16 +302,16 @@ def corr_midplane(var, norm=True, at_i1=None):
     jmin = var.shape[1] // 2 - 1
     jmax = var.shape[1] // 2 + 1
 
-    R = np.zeros((len(at_i1), var.shape[2]))
+    R = jnp.zeros((len(at_i1), var.shape[2]))
 
     # TODO is there a way to vectorize over R? Also, are we going to average over adjacent r ever?
     for i_out,i1 in enumerate(at_i1):
         # Average over small angle around midplane
-        var_phi = np.mean(var[i1, jmin:jmax, :], axis=0)
+        var_phi = jnp.mean(var[i1, jmin:jmax, :], axis=0)
         # Calculate autocorrelation
-        var_phi_normal = (var_phi - np.mean(var_phi)) / np.std(var_phi)
-        var_corr = fft.ifft(np.abs(fft.fft(var_phi_normal)) ** 2)
-        R[i_out] = np.real(var_corr) / var_corr.size
+        var_phi_normal = (var_phi - jnp.mean(var_phi)) / jnp.std(var_phi)
+        var_corr = fft.ifft(jnp.abs(fft.fft(var_phi_normal)) ** 2)
+        R[i_out] = jnp.real(var_corr) / var_corr.size
 
     if norm:
         normR = R[:, 0]
@@ -328,30 +330,34 @@ def corr_midplane_direct(var, norm=True):
     jmin = var.shape[1] // 2 - 1
     jmax = var.shape[1] // 2 + 1
 
-    var_norm = np.ones((var.shape[0], 2, var.shape[2]))
+    var_norm = jnp.ones((var.shape[0], 2, var.shape[2]))
     # Normalize radii separately
     for i in range(var.shape[0]):
-        vmean = np.mean(var[i, jmin:jmax, :])
-        var_norm[i, :, :] = var[i, jmin:jmax, :] - vmean
+        vmean = jnp.mean(var[i, jmin:jmax, :])
+        #var_norm[i, :, :] = var[i, jmin:jmax, :] - vmean
+        var_norm = var_norm.at[i, :, :].set(var[i, jmin:jmax, :] - vmean)
 
-    R = np.ones((var.shape[0], var.shape[2]))
+    R = jnp.ones((var.shape[0], var.shape[2]))
     for k in range(var.shape[2]):
-        R[:, k] = np.sum(var_norm * np.roll(var_norm, k, axis=-1), axis=(1, 2)) / 2
+        #R[:, k] = np.sum(var_norm * np.roll(var_norm, k, axis=-1), axis=(1, 2)) / 2
+        R = R.at[:, k].set(jnp.sum(var_norm * jnp.roll(var_norm, k, axis=-1), axis=(1, 2)) / 2)
 
     if norm:
         normR = R[:, 0]
         for k in range(var.shape[2]):
-            R[:, k] /= normR
+            #R[:, k] /= normR
+            R = R.at[:, k].set(R[:, k]/ normR)
+
 
     return R
 
 
 def corr_length_phi(R, interpolate=True):
     """Correlation "length" (angle) given a correlation function of r,phi"""
-    lam = np.zeros(R.shape[0])
+    lam = jnp.zeros(R.shape[0])
     for i in range(R.shape[0]):
         k = 0
-        target = R[i, 0] / np.exp(1)
+        target = R[i, 0] / jnp.exp(1)
         while k < R.shape[1] and R[i, k] >= target:
             k += 1
 
@@ -359,7 +365,8 @@ def corr_length_phi(R, interpolate=True):
             k = (target + (k - 1) * R[i, k] - k * R[i, k - 1]) / (R[i, k] - R[i, k-1])
 
         # This is specific to phi
-        lam[i] = k * (2 * np.pi / R.shape[1])
+        #lam[i] = k * (2 * np.pi / R.shape[1])
+        lam = lam.at[i].set(k * (2 * jnp.pi / R.shape[1]))
     return lam
 
 
@@ -369,28 +376,29 @@ def pspec(var, dt=5, window=0.33, half_overlap=False, bin="fib"):
     """Power spectrum of a 1D timeseries, with various windows/binning.
     Currently only supports equally spaced times dt.
     """
-    if not np.any(var[var.size // 2:]):
-        return np.zeros_like(var), np.zeros_like(var)
+    if not jnp.any(var[var.size // 2:]):
+        return jnp.zeros_like(var), jnp.zeros_like(var)
 
     data = var[var.size // 2:]
-    data = data[np.nonzero(data)] - np.mean(data[np.nonzero(data)])
+    data = data[jnp.nonzero(data)] - jnp.mean(data[jnp.nonzero(data)])
 
     if window < 1:
         window = int(window * data.size)
     print("FFT window is {} of {} samples".format(window, data.size))
 
     print("Sampling time is {}".format(dt))
-    out_freq = np.abs(fft.fftfreq(window, dt))
+    out_freq = jnp.abs(fft.fftfreq(window, dt))
 
     if half_overlap:
         # Hanning w/50% overlap
         spacing = (window // 2)
         nsamples = data.size // spacing
 
-        out = np.zeros(window)
+        out = jnp.zeros(window)
         for i in range(nsamples - 1):
-            windowed = np.hanning(window) * data[i * spacing:(i + window // spacing) * spacing]
-            out += np.abs(fft.fft(windowed)) ** 2
+            windowed = jnp.hanning(window) * data[i * spacing:(i + window // spacing) * spacing]
+            #out += np.abs(fft.fft(windowed)) ** 2
+            out = out + jnp.abs(fft.fft(windowed)) ** 2
 
         # TODO binning?
 
@@ -401,8 +409,8 @@ def pspec(var, dt=5, window=0.33, half_overlap=False, bin="fib"):
         nsamples = data.size // window
 
         for i in range(nsamples):
-            windowed = np.hamming(window) * data[i * window:(i + 1) * window]
-            pspec = np.abs(fft.fft(windowed)) ** 2
+            windowed = jnp.hamming(window) * data[i * window:(i + 1) * window]
+            pspec = jnp.abs(fft.fft(windowed)) ** 2
 
             # Bin data, declare accumulator output when we know its size
             if bin == "fib":
@@ -410,15 +418,17 @@ def pspec(var, dt=5, window=0.33, half_overlap=False, bin="fib"):
                 pspec, freqs = _fib_bin(pspec, out_freq)
 
                 if i == 0:
-                    out = np.zeros_like(np.array(pspec))
+                    out = jnp.zeros_like(jnp.array(pspec))
             else:
                 if i == 0:
-                    out = np.zeros(window)
+                    out = jnp.zeros(window)
 
-            out += pspec
+            #out += pspec
+            out = out + pspec
 
     print("PSD using ", nsamples, " segments.")
-    out /= nsamples
+    #out /= nsamples
+    out = out / samples
     out_freq = freqs
 
     return out_freq, out
@@ -434,11 +444,11 @@ def _fib_bin(data, freqs):
     pspec = []
     pspec_freq = []
     while j + fib_b < data.size:
-        pspec.append(np.mean(data[j:j + fib_b]))
-        pspec_freq.append(np.mean(freqs[j:j + fib_b]))
+        pspec.append(jnp.mean(data[j:j + fib_b]))
+        pspec_freq.append(jnp.mean(freqs[j:j + fib_b]))
         j = j + fib_b
         fib_c = fib_a + fib_b
         fib_a = fib_b
         fib_b = fib_c
 
-    return np.array(pspec), np.array(pspec_freq)
+    return jnp.array(pspec), jnp.array(pspec_freq)

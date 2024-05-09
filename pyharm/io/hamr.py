@@ -35,6 +35,7 @@ __license__ = """
 import os
 import h5py
 import numpy as np
+import jax.numpy as jnp
 
 from .. import parameters
 

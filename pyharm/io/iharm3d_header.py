@@ -33,6 +33,7 @@ __license__ = """
 """
 
 import numpy as np
+import jax.numpy as jnp
 import h5py, sys
 
 from ..grid import Grid
@@ -256,7 +257,7 @@ def _decode_all(bytes_dict):
         if isinstance(bytes_dict[key], (bytes, np.bytes_)):
             bytes_dict[key] = bytes_dict[key].decode('UTF-8')
         # Split ndarray of bytes into list of strings
-        elif isinstance(bytes_dict[key], np.ndarray):
+        elif isinstance(bytes_dict[key], (np.ndarray, jnp.ndarray)):
             if bytes_dict[key].dtype.kind == 'S':
                 bytes_dict[key] = [el.decode('UTF-8') for el in bytes_dict[key]]
         # Recurse for any subfolders
@@ -269,11 +270,11 @@ def _write_value(outf, value, name):
     """Write a single value to HDF5 file outf, automatically converting Python3 strings & lists"""
     if isinstance(value, list):
         if isinstance(value[0], str):
-            load = [np.array(n.upper().encode("ascii", "ignore"), dtype='S20') for n in value]
+            load = [jnp.array(n.upper().encode("ascii", "ignore"), dtype='S20') for n in value]
         else:
             load = value
     elif isinstance(value, str):
-        load = np.array(value.upper().encode("ascii", "ignore"), dtype='S20')
+        load = jnp.array(value.upper().encode("ascii", "ignore"), dtype='S20')
     else:
         load = value
 

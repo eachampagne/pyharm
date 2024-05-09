@@ -34,7 +34,9 @@ __license__ = """
 
 import copy
 
-import numpy as np
+#import numpy as np
+import jax.numpy as jnp
+
 from scipy import optimize
 from scipy.interpolate import splrep, splev
 from scipy.integrate import odeint, solve_ivp
@@ -59,15 +61,15 @@ def _T_func(T, r, C3, C4, N):
 # Obtain primitives for Bondi problem
 def get_bondi_soln(mdot, rc, gam, r_values):
     N    = 2./ (gam - 1)
-    vc   = np.sqrt(1. / (2 * rc))
-    csc  = np.sqrt(vc**2 / (1 - 3*vc**2))
+    vc   = jnp.sqrt(1. / (2 * rc))
+    csc  = jnp.sqrt(vc**2 / (1 - 3*vc**2))
     Tc   = 2*N*csc**2 / ((N + 2)*(2 - N*csc**2))
     C4   = Tc**(N/2)*vc*rc**2
     C3   = (1 + (1 + N/2)*Tc)**2 * (1 - 2./rc + vc**2)
-    K = (4*np.pi*C4 / mdot) ** (2./N)
+    K = (4*jnp.pi*C4 / mdot) ** (2./N)
 
     # Root find T
-    T = np.zeros_like(r_values)
+    T = jnp.zeros_like(r_values)
     for index, r in enumerate(r_values):
         T0       = Tc
         sol      = optimize.root(_T_func, [T0], args=(r, C3, C4, N))
@@ -90,19 +92,20 @@ def get_bondi_fluid_state(mdot, rc, gam, grid):
 
     # We have u^r in BL from the soln,
     # which we must convert to primitive U1,2,3 in native coords
-    ucon_bl = np.zeros((4, grid['n1'], grid['n2'], grid['n3']), dtype=float)
-    ucon_bl[1] = soln['ur'][:,None,None]
-    set_fourvel_t(grid['gcov_bl'], ucon_bl)
+    ucon_bl = jnp.zeros((4, grid['n1'], grid['n2'], grid['n3']), dtype=float)
+    #ucon_bl[1] = soln['ur'][:,None,None]
+    ucon_bl = ucon_bl.at[1].set(soln['ur'][:,None,None])
+    ucon_bl = set_fourvel_t(grid['gcov_bl'], ucon_bl)
     # Convert ucon(Bl) to ucon(KS)
-    ucon_ks = np.einsum("ij...,j...->i...", grid['dxdX_bl'], ucon_bl)
+    ucon_ks = jnp.einsum("ij...,j...->i...", grid['dxdX_bl'], ucon_bl)
     # Convert ucon(KS) to ucon(MKS/FMKS)
-    ucon_mks = np.einsum("i...,ij...->j...", ucon_ks, grid['dXdx'])
+    ucon_mks = jnp.einsum("i...,ij...->j...", ucon_ks, grid['dXdx'])
     # Convert to primitive vars (TODO do I even need this?)
     utilde = fourvel_to_prim(grid['gcon'], ucon_mks)
 
     # Construct a fluid state object
     state_data = {}
-    sizer = np.ones((grid['n1'], grid['n2'], grid['n3']))
+    sizer = jnp.ones((grid['n1'], grid['n2'], grid['n3']))
     state_data['RHO'] = state_data['rho'] = soln['rho'][:,None,None]*sizer
     state_data['UU'] = state_data['u'] = soln['u'][:,None,None]*sizer
     state_data['U1'] = utilde[0]
@@ -110,9 +113,9 @@ def get_bondi_fluid_state(mdot, rc, gam, grid):
     state_data['U3'] = utilde[2]
     state_data['uvec'] = utilde
     state_data['B1'] = 1/grid['r']**3 * sizer
-    state_data['B2'] = np.zeros_like(state_data['B1'])
-    state_data['B3'] = np.zeros_like(state_data['B1'])
-    state_data['B'] = np.array([state_data['B1'], state_data['B2'], state_data['B3']])
+    state_data['B2'] = jnp.zeros_like(state_data['B1'])
+    state_data['B3'] = jnp.zeros_like(state_data['B1'])
+    state_data['B'] = jnp.array([state_data['B1'], state_data['B2'], state_data['B3']])
     # For good measure
     state_data['ur'] = soln['ur']
 
@@ -147,7 +150,7 @@ def compute_rhs_second_term(state):
     x1    = state['X1'][:,0,0]
     x1h   = x1 + delta
     x1l   = x1 - delta
-    expr  = np.log(state['tau'] / (state['eta'] * state['u'] * (state['gam'] - 1.)))
+    expr  = jnp.log(state['tau'] / (state['eta'] * state['u'] * (state['gam'] - 1.)))
     expr_splrep = splrep(x1, expr[:,0,0])
     expr_h = splev(x1h, expr_splrep)
     expr_l = splev(x1l, expr_splrep)
@@ -177,7 +180,7 @@ def compute_dP(mdot, rc, gam, input_grid, eta=0.01, tau=30, start=0., npoints=10
     x1 = grid['X1'][:,0,0]
     dx1 = grid['dx1']
     ur_splrep    = splrep(x1, state['ucon'][1][:,0,0])
-    dP0_splrep   = splrep(x1, np.mean(state['dP0'], axis=(1,2))) # TODO call to pass eta?
+    dP0_splrep   = splrep(x1, jnp.mean(state['dP0'], axis=(1,2))) # TODO call to pass eta?
     coeff_splrep = splrep(x1, coeff)
 
     ode_soln = solve_ivp(_ddP_dX1, (x1[-1], x1[0]), [start],

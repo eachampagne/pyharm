@@ -35,6 +35,7 @@ __license__ = """
 import inspect
 
 import numpy as np
+import jax.numpy as jnp
 
 from pyharm.defs import Loci, Slices, Shapes
 from pyharm.coordinates import *
@@ -158,11 +159,11 @@ class Grid:
         self.params = params
         self.cache = {}
         if 'n1tot' in params:
-            self.NTOT = np.array([1, params['n1tot'], params['n2tot'], params['n3tot']])
+            self.NTOT = jnp.array([1, params['n1tot'], params['n2tot'], params['n3tot']])
         else:
-            self.NTOT = np.array([1, params['n1'], params['n2'], params['n3']])
+            self.NTOT = jnp.array([1, params['n1'], params['n2'], params['n3']])
         # Indices of first & last zone in global grid
-        self.global_start = np.array([0, 0, 0])  # TODO someday this and N need modification
+        self.global_start = jnp.array([0, 0, 0])  # TODO someday this and N need modification
         self.global_stop = self.NTOT[1:]
         # Size of this grid
         self.N = self.NTOT  # TODO do I really want to carry around a useless first index?
@@ -209,9 +210,9 @@ class Grid:
 
         # If we got native coordinates, use those
         if 'x1min' in params:
-            self.startx = np.array([0, params['x1min'], params['x2min'], params['x3min']])
+            self.startx = jnp.array([0, params['x1min'], params['x2min'], params['x3min']])
         elif 'startx1' in params:
-            self.startx = np.array([0, params['startx1'], params['startx2'], params['startx3']])
+            self.startx = jnp.array([0, params['startx1'], params['startx2'], params['startx3']])
         else:
             # Ask our new coordinate system where to start/stop the native grid,
             # so it aligns with the KS boundaries we've been assigned
@@ -220,7 +221,7 @@ class Grid:
                 raise ValueError("Not enough radial zones! Increase N1!")
 
         if 'dx1' in params:
-            self.dx = np.array([0, params['dx1'], params['dx2'], params['dx3']])
+            self.dx = jnp.array([0, params['dx1'], params['dx2'], params['dx3']])
             self.stopx = self.startx + self.NTOT * self.dx
         else:
             self.stopx = self.coords.native_stopx(params)
@@ -250,6 +251,22 @@ class Grid:
 
         All functions in coordinates.py which take coordinates "x" also accept a grid of the form this returns.
         """
+        #print(type(self.global_start))
+        #print(type(self.global_start[0]))
+        #print(type(self.global_start[1]))
+        #print(type(self.global_start[2]))
+
+        #print(type(i))
+        #print(type(j))
+        #print(type(k))
+
+        if isinstance(i, tuple):
+            i = jnp.asarray(i)
+        if isinstance(j, tuple):
+            j = jnp.asarray(j)
+        if isinstance(k, tuple):
+            k = jnp.asarray(k)
+
         i += self.global_start[0]
         j += self.global_start[1]
         k += self.global_start[2]
@@ -290,79 +307,79 @@ class Grid:
         else:
             raise ValueError("Invalid coordinate location!")
 
-        return np.array(np.meshgrid(x[0], x[1], x[2], x[3]))[Ellipsis, 0, :, :]
+        return jnp.array(np.meshgrid(x[0], x[1], x[2], x[3]))[Ellipsis, 0, :, :]
 
     def coord_bulk(self, loc=Loci.CENT, mesh=False):
         """Return a 3D array of all position vectors X within the physical zones.
         See coord() for use.
         """
         if mesh:
-            return self.coord(np.arange(self.N[1]+1)+self.NG,
-                    np.arange(self.N[2]+1)+self.NG,
-                    np.arange(self.N[3]+1)+self.NG, loc=Loci.CORN)
+            return self.coord(jnp.arange(self.N[1]+1)+self.NG,
+                    jnp.arange(self.N[2]+1)+self.NG,
+                    jnp.arange(self.N[3]+1)+self.NG, loc=Loci.CORN)
         else:
-            return self.coord(np.arange(self.N[1])+self.NG,
-                            np.arange(self.N[2])+self.NG,
-                            np.arange(self.N[3])+self.NG, loc=loc)
+            return self.coord(jnp.arange(self.N[1])+self.NG,
+                            jnp.arange(self.N[2])+self.NG,
+                            jnp.arange(self.N[3])+self.NG, loc=loc)
 
     def coord_all(self, loc=Loci.CENT, mesh=False):
         """Like coord_bulk, but including ghost zones"""
         if mesh:
-            return self.coord(np.arange(self.GN[1]+1),
-                            np.arange(self.GN[2]+1),
-                            np.arange(self.GN[3]+1), loc=Loci.CORN)
+            return self.coord(jnp.arange(self.GN[1]+1),
+                            jnp.arange(self.GN[2]+1),
+                            jnp.arange(self.GN[3]+1), loc=Loci.CORN)
         else:
-            return self.coord(np.arange(self.GN[1]),
-                            np.arange(self.GN[2]),
-                            np.arange(self.GN[3]), loc=loc)
+            return self.coord(jnp.arange(self.GN[1]),
+                            jnp.arange(self.GN[2]),
+                            jnp.arange(self.GN[3]), loc=loc)
 
     def coord_ij(self, at=0, loc=Loci.CENT):
         """Get just a 2D meshgrid of locations, usually for plotting"""
-        return self.coord(np.arange(self.GN[1]), np.arange(self.GN[2]), at, loc=loc)
+        return self.coord(jnp.arange(self.GN[1]), jnp.arange(self.GN[2]), at, loc=loc)
 
     def coord_ik(self, at=0, loc=Loci.CENT):
         """Get just a 2D meshgrid of locations, usually for plotting"""
-        return self.coord(np.arange(self.GN[1]), at, np.arange(self.GN[3]), loc=loc)
+        return self.coord(jnp.arange(self.GN[1]), at, jnp.arange(self.GN[3]), loc=loc)
 
     def coord_jk(self, at=0, loc=Loci.CENT):
         """Get just a 2D meshgrid of locations, usually for plotting"""
-        return self.coord(at, np.arange(self.GN[2]), np.arange(self.GN[3]), loc=loc)
+        return self.coord(at, jnp.arange(self.GN[2]), jnp.arange(self.GN[3]), loc=loc)
 
     def coord_ij_mesh(self, at=0):
         """Get just a 2D meshgrid of locations, usually for plotting"""
-        return self.coord(np.arange(self.GN[1]+1), np.arange(self.GN[2]+1), at, loc=Loci.CORN)
+        return self.coord(jnp.arange(self.GN[1]+1), jnp.arange(self.GN[2]+1), at, loc=Loci.CORN)
 
     def coord_ik_mesh(self, at=0):
         """Get just a 2D meshgrid of locations, usually for plotting"""
-        return self.coord(np.arange(self.GN[1]+1), at, np.arange(self.GN[3]+1), loc=Loci.CORN)
+        return self.coord(jnp.arange(self.GN[1]+1), at, jnp.arange(self.GN[3]+1), loc=Loci.CORN)
 
     def coord_jk_mesh(self, at=0):
         """Get just a 2D meshgrid of locations, usually for plotting"""
-        return self.coord(at, np.arange(self.GN[2]+1), np.arange(self.GN[3]+1), loc=Loci.CORN)
+        return self.coord(at, jnp.arange(self.GN[2]+1), jnp.arange(self.GN[3]+1), loc=Loci.CORN)
 
     ### OPERATIONS
     def lower_grid(self, vcon, loc=Loci.CENT):
         """Lower a grid of contravariant rank-1 tensors to covariant ones."""
-        return np.einsum("ij...,j...->i...", self['gcov'+_loc_tag(loc.value)], vcon)
+        return jnp.einsum("ij...,j...->i...", self['gcov'+_loc_tag(loc.value)], vcon)
 
     def raise_grid(self, vcov, loc=Loci.CENT):
         """Raise a grid of covariant rank-1 tensors to contravariant ones."""
-        return np.einsum("ij...,j...->i...", self['gcon'+_loc_tag(loc.value)], vcov)
+        return jnp.einsum("ij...,j...->i...", self['gcon'+_loc_tag(loc.value)], vcov)
 
     # Converstion functions for native (F)MKS etc <-> KS
     def ks_to_native_con(self, ucon_ks):
-        return np.einsum("i...,ij...->j...", ucon_ks, self['dXdx'])
+        return jnp.einsum("i...,ij...->j...", ucon_ks, self['dXdx'])
     def native_to_ks_con(self, ucon):
-        return np.einsum("i...,ij...->j...", ucon, self['dxdX'])
+        return jnp.einsum("i...,ij...->j...", ucon, self['dxdX'])
     def ks_to_native_cov(self, ucov_ks):
         return self.native_to_ks_con(ucov_ks)
     def native_to_ks_cov(self, ucov):
         return self.ks_to_native_con(ucov)
     # Conversion functions for BL<->KS
     def bl_to_ks_con(self, ucon_bl):
-        return np.einsum("ij...,j...->i...", self['dXdx_bl'], ucon_bl)
+        return jnp.einsum("ij...,j...->i...", self['dXdx_bl'], ucon_bl)
     def ks_to_bl_con(self, ucon_ks):
-        return np.einsum("ij...,j...->i...", self['dxdX_bl'], ucon_ks)
+        return jnp.einsum("ij...,j...->i...", self['dxdX_bl'], ucon_ks)
     def bl_to_ks_cov(self, ucov_bl):
         return self.ks_to_bl_con(ucov_bl)
     def ks_to_bl_cov(self, ucov_ks):
@@ -371,7 +388,7 @@ class Grid:
 
     def dot(self, ucon, ucov):
         """Inner product along first index."""
-        return np.einsum("i...,i...", ucon, ucov)
+        return jnp.einsum("i...,i...", ucon, ucov)
 
     def dt_light(self):
         """Returns the light crossing time of the smallest zone in the grid"""
@@ -399,7 +416,7 @@ class Grid:
 
         dt_light_local = 1. / dt_light_local
 
-        return np.min(dt_light_local)
+        return jnp.min(dt_light_local)
 
     ### PLOTTING/CONVENIENCE
     def get_xz_locations(self, mesh=False, native=False, half_cut=False, log_r=False):
@@ -424,14 +441,14 @@ class Grid:
             else:
                 # Append reversed in th.  We're now contiguous over th=180, so we remove the last
                 # (or after reversal, first) zone of the flipped (left) side
-                m = np.append(m[:, :, :, 0], np.flip(m[:, :, :-1, 1], 2), 2)
+                m = jnp.append(m[:, :, :, 0], jnp.flip(m[:, :, :-1, 1], 2), 2)
         else:
             # Version for zone centers doesn't need the extra 
             m = self.coord_ij(at=(0, self.NTOT[3]//2))
             if half_cut:
                 m = m[Ellipsis, 0]
             else:
-                m = np.append(m[Ellipsis, 0], np.flip(m[Ellipsis, 1], 2), 2)
+                m = jnp.append(m[Ellipsis, 0], jnp.flip(m[Ellipsis, 1], 2), 2)
         if native:
             x = m[1]
             z = m[2]
@@ -439,7 +456,7 @@ class Grid:
             x = self.coords.cart_x(m, log_r)
             z = self.coords.cart_z(m, log_r)
 
-        return np.squeeze(x), np.squeeze(z)
+        return jnp.squeeze(x), jnp.squeeze(z)
 
     def get_xy_locations(self, mesh=False, native=False, log_r=False):
         """Get the mesh locations x_ij and y_ij needed for plotting a midplane slice.
@@ -463,7 +480,7 @@ class Grid:
             x = self.coords.cart_x(m, log_r)
             y = self.coords.cart_y(m, log_r)
         
-        return np.squeeze(x), np.squeeze(y)
+        return jnp.squeeze(x), jnp.squeeze(y)
 
     def get_xz_areas(self, **kwargs):
         """Get cell areas in the plotting plane using the trapezoid area function
@@ -474,7 +491,7 @@ class Grid:
         x2 = x[1: ,:-1]; z2 = z[1: ,:-1]
         x3 = x[1: ,1: ]; z3 = z[1: ,1: ]
         x4 = x[:-1,1: ]; z4 = z[:-1,1: ]
-        return 0.5 * np.abs(x1*z2+x2*z3+x3*z4+x4*z1 - x2*z1-x3*z2-x4*z3-x1*z4)
+        return 0.5 * jnp.abs(x1*z2+x2*z3+x3*z4+x4*z1 - x2*z1-x3*z2-x4*z3-x1*z4)
 
     def get_thphi_locations(self, at, mesh=False, native=False, bottom=False, projection='mercator'):
         """Get the mesh locations x_ij and y_ij needed for plotting a th-phi slice.
@@ -513,10 +530,10 @@ class Grid:
             x = self.coords.cart_x(m)
             y = self.coords.cart_y(m)
         elif projection == 'flattened_polar':
-            x = self.coords.th(m) * np.cos(self.coords.phi(m))
-            y = self.coords.th(m) * np.sin(self.coords.phi(m))
+            x = self.coords.th(m) * jnp.cos(self.coords.phi(m))
+            y = self.coords.th(m) * jnp.sin(self.coords.phi(m))
         
-        return np.squeeze(x), np.squeeze(y)
+        return jnp.squeeze(x), jnp.squeeze(y)
 
     def __contains__(self, key):
         """Whether the given key would return something from this object.
@@ -568,17 +585,22 @@ class Grid:
             # Revise size numbers for this grid
             # Note we keep the same global numbers, just update our starting/stopping/size
             for i in range(len(slc)):
-                if isinstance(slc[i], int) or isinstance(slc[i], np.int32) or isinstance(slc[i], np.int64):
-                    out.global_start[i] = slc[i]
-                    out.global_stop[i] = slc[i] + 1
+                if isinstance(slc[i], int) or isinstance(slc[i], (np.int32, jnp.int32)) or isinstance(slc[i], (np.int64, jnp.int64)):
+                    #out.global_start[i] = slc[i]
+                    out.global_start = out.global_start.at[i].set(slc[i])
+                    #out.global_stop[i] = slc[i] + 1
+                    out.global_stop = out.global_stop.at[i].set(slc[i] + 1)
                 elif slc[i] is not None:
                     if slc[i].start is not None:
-                        out.global_start[i] = self.global_start[i] + slc[i].start
+                        #out.global_start[i] = self.global_start[i] + slc[i].start
+                        out.global_start = out.global_start.at[i].set(self.global_start[i] + slc[i].start)
                     if slc[i].stop is not None:
                         # Count forward from global_start, or backward from global_stop
-                        out.global_stop[i] = self.global_start[i] + slc[i].stop if slc[i].stop > 0 else self.global_stop[i] + slc[i].stop
+                        #out.global_stop[i] = self.global_start[i] + slc[i].stop if slc[i].stop > 0 else self.global_stop[i] + slc[i].stop
+                        out.global_stop = out.global_stop.at[i].set(self.global_start[i] + slc[i].stop if slc[i].stop > 0 else self.global_stop[i] + slc[i].stop)
                 # Revise/reset size
-                out.N[i+1] = out.global_stop[i] - out.global_start[i]
+                #out.N[i+1] = out.global_stop[i] - out.global_start[i]
+                out.N = out.N.at[i+1].set(out.global_stop[i] - out.global_start[i])
             # Reset GN
             out.GN = out.N + (out.N > 1) * 2*out.NG
 
@@ -640,14 +662,14 @@ class Grid:
             # phi is not symmetric in phi.  Don't cache, it's big and easy
             return getattr(self.coords, key)(self.coord_all())
         elif key  == 'r1d':
-            self.cache[key] = np.squeeze(self.coords.r(self.coord(np.arange(self.GN[1]), 0, 0)))
+            self.cache[key] = jnp.squeeze(self.coords.r(self.coord(jnp.arange(self.GN[1]), 0, 0)))
             return self.cache[key]
         elif key  == 'th1d':
             # Return coord at outer edge for minimum cylindrification
-            self.cache[key] =  np.squeeze(self.coords.th(self.coord(self.GN[1]-1, np.arange(self.GN[2]), 0)))
+            self.cache[key] =  jnp.squeeze(self.coords.th(self.coord(self.GN[1]-1, jnp.arange(self.GN[2]), 0)))
             return self.cache[key]
         elif key  == 'phi1d':
-            self.cache[key] =  np.squeeze(self.coords.phi(self.coord(0, 0, np.arange(self.GN[3]))))
+            self.cache[key] =  jnp.squeeze(self.coords.phi(self.coord(0, 0, jnp.arange(self.GN[3]))))
             return self.cache[key]
         elif key in ['x', 'y', 'z']:
             # none of these are phi-symmetric. Ergo, 3D

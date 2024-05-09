@@ -33,6 +33,7 @@ __license__ = """
 """
 
 import numpy as np
+import jax.numpy as jnp
 
 from .. import parameters
 
@@ -47,7 +48,7 @@ class HARM2DFile(DumpFile):
 
     @classmethod
     def get_dump_time(cls, fname):
-        data = np.loadtxt(fname, max_rows=1)
+        data = jnp.loadtxt(fname, max_rows=1)
         return data[0]
 
     def __init__(self, fname):
@@ -55,14 +56,14 @@ class HARM2DFile(DumpFile):
         # First line is header
         self.params = self.read_params()
         # Just cache the whole file, it's 2D
-        self.data = np.loadtxt(fname, skiprows=1)
+        self.data = jnp.loadtxt(fname, skiprows=1)
         self.sz = (self.params['n1'], self.params['n2'], self.params['n3'])
         self.prims = self.data[:,2:10].reshape(*self.sz, self.params['n_prim']).transpose(3,0,1,2)
 
     def read_params(self):
         params = {}
 
-        data = np.loadtxt(self.fname, max_rows=1)
+        data = jnp.loadtxt(self.fname, max_rows=1)
 
         # first get line 0 header info
         params['t']       = data[0]
@@ -92,7 +93,7 @@ class HARM2DFile(DumpFile):
         params['n_prim'] = 8
         # TODO try to read these?
         params['coordinates'] = "mks"
-        params['r_out'] = np.exp(params['startx1'] + params['n1']*params['dx1'])
+        params['r_out'] = jnp.exp(params['startx1'] + params['n1']*params['dx1'])
         params['a'] = 0.9375
         params['hslope'] = 0.3
         # OR

@@ -33,6 +33,7 @@ __license__ = """
 """
 
 import numpy as np
+import jax.numpy as jnp
 
 from pyharm.defs import Loci, Slices
 
@@ -50,7 +51,7 @@ def divB(G, B):
 
     original_shape = B.shape
 
-    divB = np.abs(0.25 * (
+    divB = jnp.abs(0.25 * (
             B[0][s.b, s.b, s.b] * gdet[s.b, s.b, :]
             + B[0][s.b, s.l1, s.b] * gdet[s.b, s.l1, :]
             + B[0][s.b, s.b, s.l1] * gdet[s.b, s.b, :]
@@ -79,8 +80,9 @@ def divB(G, B):
             - B[2][s.l1, s.l1, s.l1] * gdet[s.l1, s.l1, :]
             ) / G.dx[3])
 
-    divB_full = np.zeros(original_shape[1:])
-    divB_full[s.b, s.b, s.b] = divB
+    divB_full = jnp.zeros(original_shape[1:])
+    #divB_full[s.b, s.b, s.b] = divB
+    divB_full = divB_full.at[s.b, s.b, s.b].set(divB)
 
     return divB_full
 
@@ -88,7 +90,7 @@ def divB_cons(G, B):
 
     s = Slices(ng=1)
 
-    divB = np.abs(0.25 * (
+    divB = jnp.abs(0.25 * (
             B[0][s.b, s.b, s.b]
             + B[0][s.b, s.l1, s.b]
             + B[0][s.b, s.b, s.l1]
@@ -117,7 +119,9 @@ def divB_cons(G, B):
             - B[2][s.l1, s.l1, s.l1]
             ) / G.dx[3])
 
-    divB_full = np.zeros(B.shape[1:])
-    divB_full[s.b, s.b, s.b] = divB
+    divB_full = jnp.zeros(B.shape[1:])
+    #divB_full[s.b, s.b, s.b] = divB
+    divB_full = divB_full.at[s.b, s.b, s.b].set(divB)
+
 
     return divB_full

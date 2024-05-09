@@ -39,6 +39,7 @@ import psutil
 from functools import partial
 
 import numpy as np
+import jax.numpy as jnp
 
 import pyharm
 from pyharm.parallel import map_parallel
@@ -53,9 +54,9 @@ def check_dump_properties(name, check_all=True, check_divb=False, allowed_divb=1
                          ('divB_prims', 'from primitive vars'),
                          ('divB_cons', 'from conserved vars')]:
             try:
-                max_divb = np.max(dump[var])
+                max_divb = jnp.max(dump[var])
                 print("Maximum divB {} is {:g}".format(desc, max_divb))
-                if max_divb > allowed_divb or np.isnan(max_divb):
+                if max_divb > allowed_divb or jnp.isnan(max_divb):
                     print("Value too high! Returning error.")
                     retcode = 1
             except Exception:
@@ -67,7 +68,7 @@ def check_dump_properties(name, check_all=True, check_divb=False, allowed_divb=1
             retcode = -1
 
     if check_nan or check_all:
-        if np.any(np.isnan(dump['prims'])):
+        if jnp.any(jnp.isnan(dump['prims'])):
             print("")
 
     del dump
@@ -107,9 +108,9 @@ def convert(files, debug, nthreads, **kwargs):
         check_results = map_parallel(check_func, files, nprocs=nthreads)
         print("Checked all files.")
     # Return first nonzero exit code
-    checks_array = np.array(check_results)
-    if np.any(checks_array):
-        exit(checks_array[np.nonzero(checks_array)].flatten()[0])
+    checks_array = jnp.array(check_results)
+    if jnp.any(checks_array):
+        exit(checks_array[jnp.nonzero(checks_array)].flatten()[0])
     else:
         exit(0)
 

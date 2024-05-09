@@ -15,6 +15,7 @@ from __future__ import print_function
 import h5py as h
 import os, sys, errno
 import numpy as np
+import jax.numpy as jnp
 
 
 class phdf:
@@ -109,9 +110,9 @@ class phdf:
         try:
             self.BlocksPerPE = info.attrs["BlocksPerPE"]
         except:
-            self.BlocksPerPE = np.array((1), self.NumBlocks)
+            self.BlocksPerPE = jnp.array((1), self.NumBlocks)
         self.Coordinates = info.attrs["Coordinates"]
-        self.CellsPerBlock = np.prod(self.MeshBlockSize)
+        self.CellsPerBlock = jnp.prod(self.MeshBlockSize)
         self.TotalCells = self.NumBlocks * self.CellsPerBlock
 
         # Read in Params (older output files don't have this, so make it optional)
@@ -129,12 +130,15 @@ class phdf:
             if vol_loc in f:
                 coord = f[vol_loc][:, :]
             else:
-                coord = np.zeros((self.NumBlocks, self.MeshBlockSize[coord_i]))
+                coord = jnp.zeros((self.NumBlocks, self.MeshBlockSize[coord_i]))
                 for bId in range(self.NumBlocks):
                     for cId in range(self.MeshBlockSize[coord_i]):
-                        coord[bId, cId] = 0.5 * (
+                        #coord[bId, cId] = 0.5 * (
+                        #    coordf[bId, cId] + coordf[bId, cId + 1]
+                        #)
+                        coord = coord.at[bId, cId].set(0.5 * (
                             coordf[bId, cId] + coordf[bId, cId + 1]
-                        )
+                        ))
             return coord, coordf
 
         self.x, self.xf = load_coord(0)
@@ -181,7 +185,7 @@ class phdf:
             self.BlockIdx = BlockIdx
             self.BlockBounds = BlockBounds
 
-        self.TotalCellsReal = self.NumBlocks * np.prod(
+        self.TotalCellsReal = self.NumBlocks * jnp.prod(
             self.MeshBlockSize - 2 * self.offset
         )
 
@@ -195,8 +199,8 @@ class phdf:
         # Construct a map of datasets to number contained components
         self.DatasetNumComponents = dict(
             zip(
-                np.array(info.attrs["OutputDatasetNames"]).ravel().astype(str),
-                np.array(info.attrs["NumComponents"]).ravel(),
+                jnp.array(info.attrs["OutputDatasetNames"]).ravel().astype(str),
+                jnp.array(info.attrs["NumComponents"]).ravel(),
             )
         )
         # Construct a map of components to parent datasets,idx
@@ -206,7 +210,7 @@ class phdf:
             num_components = num_components.astype(int)
 
             component_names = (
-                np.array(info.attrs["ComponentNames"])
+                jnp.array(info.attrs["ComponentNames"])
                 .ravel()
                 .astype(str)[idx_i : idx_i + num_components]
             )
@@ -239,10 +243,11 @@ class phdf:
         """
         # flag for ghost cells.
         # Logic is easier starting with all ghost and unmarking
-        self.offset = np.zeros(3, "i")
+        self.offset = jnp.zeros(3, "i")
         for i in range(3):
             if self.MeshBlockSize[i] > 1:
-                self.offset[i] = self.NGhost * self.IncludesGhost
+                #self.offset[i] = self.NGhost * self.IncludesGhost
+                self.offset = self.offset.at[i].set(self.NGhost * self.IncludesGhost)
         xRange = range(self.MeshBlockSize[0])
         yRange = range(self.MeshBlockSize[1])
         zRange = range(self.MeshBlockSize[2])
@@ -251,7 +256,7 @@ class phdf:
         zo = [self.offset[2], self.MeshBlockSize[2] - self.offset[2]]
 
         # The previous method here was slow. TODO upstream
-        self.BlockIdx = np.reshape(np.array(np.meshgrid(zRange, yRange, xRange)).transpose(1,2,3,0),
+        self.BlockIdx = jnp.reshape(jnp.array(jnp.meshgrid(zRange, yRange, xRange)).transpose(1,2,3,0),
                                    (self.MeshBlockSize[0]*self.MeshBlockSize[1]*self.MeshBlockSize[2], 3))
         self.isGhost = (zo[0] > self.BlockIdx[:, 0]) | (self.BlockIdx[:, 0] >= zo[1]) | \
                        (yo[0] > self.BlockIdx[:, 1]) | (self.BlockIdx[:, 1] >= yo[1]) | \
@@ -366,13 +371,13 @@ class phdf:
         Given an meshblock index in my data, find the meshblock index in a different file.
         """
 
-        myibBounds = np.array(self.BlockBounds[ib])
+        myibBounds = jnp.array(self.BlockBounds[ib])
 
         # now hunt in other file
         for ib1 in range(other.NumBlocks):
-            ib1Bounds = np.array(other.BlockBounds[ib1])
+            ib1Bounds = jnp.array(other.BlockBounds[ib1])
 
-            if np.all(np.abs(myibBounds - ib1Bounds) < tol):
+            if jnp.all(jnp.abs(myibBounds - ib1Bounds) < tol):
                 return ib1
 
         if verbose:
@@ -417,7 +422,7 @@ class phdf:
 
         vShape = self.varData[variable].shape
         if flatten:
-            if np.prod(vShape) > self.TotalCells:
+            if jnp.prod(vShape) > self.TotalCells:
                 return self.varData[variable][:].reshape(self.TotalCells, vShape[-1])
             else:
                 return self.varData[variable][:].reshape(self.TotalCells)
@@ -498,14 +503,23 @@ class phdf:
         # loc[grid_idx,k,j,i]
         loc_shape = (x.shape[0], z.shape[1], y.shape[1], x.shape[1])
 
-        Z = np.empty(loc_shape)
-        Y = np.empty(loc_shape)
-        X = np.empty(loc_shape)
+        Z = jnp.empty(loc_shape)
+        Y = jnp.empty(loc_shape)
+        X = jnp.empty(loc_shape)
 
         for grid_idx in range(loc_shape[0]):
-            Z[grid_idx], Y[grid_idx], X[grid_idx] = np.meshgrid(
+            #Z[grid_idx], Y[grid_idx], X[grid_idx] = np.meshgrid(
+            #    z[grid_idx], y[grid_idx], x[grid_idx], indexing="ij"
+            #)
+            #I don't actually know what these are so I don't know what to call the mediator vars
+            #Unfortunately JAX's at set syntax is considerably less precise
+            Z_changed, Y_changed, X_changed = jnp.meshgrid(
                 z[grid_idx], y[grid_idx], x[grid_idx], indexing="ij"
             )
+            Z = Z.at[grid_idx].set(Z_changed)
+            Y = Y.at[grid_idx].set(Y_changed)
+            X = X.at[grid_idx].set(X_changed)
+            #I am also slightly worried that this will do weird things with copy vs view
 
         if flatten:
             Z = Z.ravel()
@@ -573,7 +587,7 @@ class phdf:
                 self.CellsPerBlock,
                 self.TotalCells,
                 self.TotalCellsReal,
-                np.sum(self.BlocksPerPE.shape),
+                jnp.sum(self.BlocksPerPE.shape),
                 self.BlocksPerPE,
                 self.NGhost,
                 self.IncludesGhost,

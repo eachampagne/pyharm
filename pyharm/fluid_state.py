@@ -34,6 +34,7 @@ __license__ = """
 
 import copy
 import numpy as np
+import jax.numpy as jnp
 
 from .defs import Loci
 from .grid import Grid
@@ -122,13 +123,13 @@ class FluidState:
                 self.cache['U2'] = self.cache['uvec'][1]
                 self.cache['U3'] = self.cache['uvec'][2]
             elif 'uvec' not in self.cache and 'U1' in self.cache:
-                self.cache['uvec'] = np.stack((self.cache['U1'], self.cache['U2'], self.cache['U3']))
+                self.cache['uvec'] = jnp.stack((self.cache['U1'], self.cache['U2'], self.cache['U3']))
             if 'B1' not in self.cache and 'B' in self.cache:
                 self.cache['B1'] = self.cache['B'][0]
                 self.cache['B2'] = self.cache['B'][1]
                 self.cache['B3'] = self.cache['B'][2]
             elif 'B' not in self.cache and 'B1' in self.cache:
-                self.cache['B'] = np.stack((self.cache['B1'], self.cache['B2'], self.cache['B3']))
+                self.cache['B'] = jnp.stack((self.cache['B1'], self.cache['B2'], self.cache['B3']))
             # Make sure we have both versions of u,rho
             if 'RHO' not in self.cache and 'rho' in self.cache:
                 self.cache['RHO'] = self.cache['rho']
@@ -141,11 +142,11 @@ class FluidState:
             # Make sure we have 'prims'.  TODO no EMHD 'prims' this way, thus no generated EMHD->file
             if 'prims' not in self.cache:
                 if 'B1' in self.cache:
-                    self.cache['prims'] = np.stack((self.cache['RHO'], self.cache['UU'],
+                    self.cache['prims'] = jnp.stack((self.cache['RHO'], self.cache['UU'],
                                                     self.cache['U1'], self.cache['U2'], self.cache['U3'],
                                                     self.cache['B1'], self.cache['B2'], self.cache['B3']))
                 else:
-                    self.cache['prims'] = np.stack((self.cache['RHO'], self.cache['UU'],
+                    self.cache['prims'] = jnp.stack((self.cache['RHO'], self.cache['UU'],
                                                     self.cache['U1'], self.cache['U2'], self.cache['U3']))
 
         else:
@@ -253,13 +254,13 @@ class FluidState:
         # Most math should be done by reductions.py
         # Don't bother to cache these, they aren't intensive to calculate
         if key[:5] == "sqrt_":
-            return np.sqrt(self[key[5:]])
+            return jnp.sqrt(self[key[5:]])
         if key[:4] == "abs_":
-            return np.abs(self[key[4:]])
+            return jnp.abs(self[key[4:]])
         if key[:4] == "log_":
-            return np.log10(self[key[4:]])
+            return jnp.log10(self[key[4:]])
         if key[:3] == "ln_":
-            return np.log(self[key[3:]])
+            return jnp.log(self[key[3:]])
         if key[:4] == "inv_":
             return 1/self[key[4:]]
         if key[:4] == "neg_":
@@ -316,17 +317,17 @@ class FluidState:
         # Don't cache these
         # TODO avoid file read?
         if key in ('zero', '0'):
-            return np.zeros_like(self['rho'])
+            return jnp.zeros_like(self['rho'])
         if key in ('one', '1'):
-            return np.ones_like(self['rho'])
+            return jnp.ones_like(self['rho'])
         if self.fname != "memory_array":
             # Read things that we haven't cached and absolutely can't calculate
             # The reader keeps its own cache, so we don't add its items to ours
             if "flag" in key:
-                out = self.reader.read_var(key, astype=np.int32, slc=self.slice)
+                out = self.reader.read_var(key, astype=jnp.int32, slc=self.slice)
             else:
                 # TODO Option for double
-                out = self.reader.read_var(key, astype=np.float64, slc=self.slice)
+                out = self.reader.read_var(key, astype=jnp.float64, slc=self.slice)
             if out is not None:
                 return out
 

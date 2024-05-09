@@ -35,6 +35,7 @@ __license__ = """
 import os
 import glob
 import numpy as np
+import jax.numpy as jnp
 
 from .. import parameters
 from ..util import slice_to_index, i_of
@@ -119,9 +120,9 @@ class KHARMAMZFile(DumpFile):
             self.kfiles.append(KHARMAFile(fname))
             self.kfiles[-1].params['n1tot'] = self.kfiles[-1].params['n1'] = kfile_tmp.params['n1']//2 * (self.nzones+1)
             self.kfiles[-1].params['r_in'] = self.base**0
-            self.kfiles[-1].params['startx1'] = self.kfiles[-1].params['x1min'] = np.log(self.base**0)
+            self.kfiles[-1].params['startx1'] = self.kfiles[-1].params['x1min'] = jnp.log(self.base**0)
             self.kfiles[-1].params['r_out'] = self.base**(self.nzones+1)
-            self.kfiles[-1].params['stopx1'] = self.kfiles[-1].params['x1max'] = np.log(self.base**(self.nzones+1))
+            self.kfiles[-1].params['stopx1'] = self.kfiles[-1].params['x1max'] = jnp.log(self.base**(self.nzones+1))
 
 
         # Take the current file's doctored params as our own,
